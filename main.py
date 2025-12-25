@@ -335,11 +335,11 @@ async def update_profile(
     try:
         user = db.query(User).filter(User.username == user_name).first()
         if user:
-            # Allow clearing fields if they are sent as empty strings
+            # Flexible Update Logic - Allow clearing fields
             if bio is not None:
-                user.bio = bio # Empty string is valid (clears bio)
+                user.bio = bio # Empty string clears it
             if profile_pic is not None:
-                user.profile_pic = profile_pic # Empty string is valid
+                user.profile_pic = profile_pic # Empty string clears it
             db.commit()
             return {"message": "Updated"}
     finally:

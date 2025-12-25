@@ -165,20 +165,26 @@ video {
 }
 
 .top-nav {
-    position: absolute;
-    top: 20px;
+    position: fixed;
+    /* Changed to fixed as per instruction */
+    top: 0;
     left: 0;
     width: 100%;
-    z-index: 9999;
+    z-index: 999999 !important;
+    /* Priority blocking */
     display: flex;
     justify-content: space-between;
     padding: 0 20px;
     pointer-events: none;
+    /* Let clicks pass through empty space */
     align-items: center;
+    height: 60px;
+    /* Ensure height for click area */
 }
 
 .nav-items {
-    pointer-events: auto;
+    pointer-events: auto !important;
+    /* Force clickability */
     display: flex;
     gap: 15px;
     font-weight: 600;
@@ -186,19 +192,23 @@ video {
 }
 
 .nav-actions {
-    pointer-events: auto;
+    pointer-events: auto !important;
+    /* Force clickability */
     display: flex;
     align-items: center;
 }
 
 .profile-icon {
-    pointer-events: auto;
+    pointer-events: auto !important;
     cursor: pointer;
 }
 
 .nav-item {
-    opacity: 0.6;
+    pointer-events: auto !important;
+    /* Force clickability for Back/Options buttons */
+    opacity: 0.8;
     cursor: pointer;
+    text-shadow: 0 0 5px rgba(0, 0, 0, 0.8);
 }
 
 .nav-item.active {

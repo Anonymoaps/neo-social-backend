@@ -239,8 +239,7 @@
             if (!txt) return;
             const fd = new FormData(); fd.append('text', txt);
             await fetch(`/video/${currentVideoId}/comment`, { method: 'POST', body: fd });
-            document.getElementById('commentInput').value = '';
-            openComments(currentVideoId);
+            window.location.reload(); # Force reload as requested
         }
 
         /* UPLOAD */
