@@ -202,12 +202,15 @@ async def auth_register(email: str = Form(...), password: str = Form(...)):
             existing.verification_code = code
         else:
             # Create new unverified user
+            # FIX NotNullViolation: Generate temp username
+            temp_username = f"user_{uuid.uuid4().hex[:8]}"
+            
             new_user = User(
                 email=email,
                 password=password,
                 verification_code=code,
                 is_verified=False,
-                username=None, # Set in step 3
+                username=temp_username, # Set temp first, update in step 3
                 created_at=str(datetime.now()),
                 profile_pic="https://ui-avatars.com/api/?background=random", 
             )
