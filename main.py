@@ -9,7 +9,7 @@ from datetime import datetime
 import cloudinary
 import cloudinary.uploader
 from sqlalchemy import create_engine, text, Column, Integer, String, DateTime, ForeignKey, Boolean, inspect
-from sqlalchemy.orm import sessionmaker, declarative_base, relationship
+from sqlalchemy.orm import sessionmaker, declarative_base, relationship, foreign
 
 from fastapi import FastAPI, UploadFile, File, Form, Request, HTTPException, Response, Cookie, Depends
 from fastapi.staticfiles import StaticFiles
@@ -86,7 +86,11 @@ class Video(Base):
     likes = Column(Integer, default=0) # Legacy column, verify with Like table count
     author = Column(String, ForeignKey("users.username"))
     created_at = Column(DateTime, default=datetime.utcnow)
-    comments = relationship("Comment", back_populates="video", cascade="all, delete-orphan")
+    comments = relationship(
+        "Comment", 
+        primaryjoin="Video.id == foreign(Comment.video_id)",
+        cascade="all, delete-orphan"
+    )
 
 class Comment(Base):
     __tablename__ = "comments"
@@ -94,8 +98,11 @@ class Comment(Base):
     text = Column(String)
     username = Column(String, ForeignKey("users.username"))
     timestamp = Column(DateTime, default=datetime.utcnow)
-    video_id = Column(String, index=True) # Simplified: No ForeignKey constraint
-    # video = relationship("Video", back_populates="comments") # Disable relationship to match no FK
+    video_id = Column(String, index=True) # Check: No ForeignKey constraint here
+    video = relationship(
+        "Video", 
+        primaryjoin="Video.id == foreign(Comment.video_id)"
+    )
 
 class Like(Base):
     __tablename__ = "likes"
