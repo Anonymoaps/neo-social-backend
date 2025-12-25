@@ -274,8 +274,8 @@ def get_profile_data(db, username, current_user_name):
     }
 
 @app.get("/me", response_class=HTMLResponse)
-async def my_profile(request: Request, neo_session: Optional[str] = Cookie(None)):
-    user_name = get_user_from_session(neo_session)
+async def my_profile(request: Request):
+    user_name = get_user_from_session(request)
     if not user_name: return RedirectResponse(url="/")
         
     db = SessionLocal()
@@ -295,8 +295,8 @@ async def my_profile(request: Request, neo_session: Optional[str] = Cookie(None)
         db.close()
 
 @app.get("/user/{username}", response_class=HTMLResponse)
-async def get_public_profile_page(request: Request, username: str, neo_session: Optional[str] = Cookie(None)):
-    current_user_name = get_user_from_session(neo_session)
+async def get_public_profile_page(request: Request, username: str):
+    current_user_name = get_user_from_session(request)
     if current_user_name == username: return RedirectResponse(url="/me")
 
     db = SessionLocal()
