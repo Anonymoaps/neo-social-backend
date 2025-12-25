@@ -344,9 +344,9 @@
                         <video src="${v.url}" loop playsinline onclick="handleVideoClick(this, '${v.id}')"></video>
                         <div class="overlay">
                             <div class="video-info">
-                                <div class="author-badge" onclick="window.location.href='/user/${v.author}'">
-                                    <img src="${v.author_pic}" class="author-pic">
-                                    <span class="username">@${v.author}</span>
+                                <div class="author-badge" onclick="window.location.href='/user/${v.author}'" ${!v.author ? 'style="pointer-events:none; opacity:0.7"' : ''}>
+                                    <img src="${v.author_pic || 'https://ui-avatars.com/api/?background=random'}" class="author-pic">
+                                    <span class="username">@${v.author || 'Anônimo'}</span>
                                     ${v.author_is_pioneer ? '<span class="pioneer-tag">🔰</span>' : ''}
                                 </div>
                                 <p class="desc">${v.title}</p>
@@ -423,9 +423,9 @@
             list.forEach(c => {
                 div.innerHTML += `
                     <div class="comment-item">
-                        <img src="${c.profile_pic}" class="comment-avatar">
+                        <img src="${c.profile_pic || 'https://ui-avatars.com/api/?background=random'}" class="comment-avatar">
                         <div>
-                            <div style="font-weight:bold; color:#aaa;">${c.username} ${c.is_pioneer ? '🔰' : ''}</div>
+                            <div style="font-weight:bold; color:#aaa;">${c.username || 'Anônimo'} ${c.is_pioneer ? '🔰' : ''}</div>
                             <div>${c.text}</div>
                         </div>
                     </div>`;
