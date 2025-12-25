@@ -3,361 +3,625 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NEO Social Engine</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>NEO | Social Engine</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --primary: #E94359;
-            --accent: #A020F0;
-            --bg: #0d0d0d;
-            --card-bg: #1a1a1a;
-            --text: #ffffff;
+            --primary: #FF2E63;
+            --accent: #08D9D6;
+            --bg: #000000;
+            --text: #EAEAEA;
+            --glass: rgba(255, 255, 255, 0.1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-tap-highlight-color: transparent;
         }
 
         body {
-            font-family: 'Inter', sans-serif;
+            font-family: 'Outfit', sans-serif;
             background-color: var(--bg);
             color: var(--text);
-            padding: 20px;
-            margin: 0;
-        }
-
-        .container {
-            max-width: 600px;
-            margin: 0 auto;
-        }
-
-        h1 {
-            color: var(--primary);
-            text-align: center;
-        }
-
-        /* Upload Section */
-        .upload-box {
-            background: #222;
-            padding: 20px;
-            border-radius: 15px;
-            margin-bottom: 30px;
-            text-align: center;
-            border: 1px dashed #444;
-        }
-
-        input,
-        button {
-            width: 100%;
-            padding: 12px;
-            margin: 8px 0;
-            border-radius: 8px;
-            border: none;
-            box-sizing: border-box;
-        }
-
-        input {
-            background: #333;
-            color: white;
-        }
-
-        button {
-            background: linear-gradient(45deg, var(--accent), var(--primary));
-            color: white;
-            font-weight: bold;
-            cursor: pointer;
-            transition: transform 0.1s;
-        }
-
-        button:active {
-            transform: scale(0.98);
-        }
-
-        /* Feed Section */
-        .video-card {
-            background: var(--card-bg);
-            margin-bottom: 25px;
-            border-radius: 15px;
             overflow: hidden;
+            /* App feel */
+            height: 100vh;
         }
 
-        .video-player {
+        /* --- Fullscreen Vertical Feed --- */
+        #feed-container {
+            height: 100%;
             width: 100%;
-            display: block;
-            background: black;
-            max-height: 500px;
+            overflow-y: scroll;
+            scroll-snap-type: y mandatory;
+            scrollbar-width: none;
+            /* Firefox */
         }
 
-        .details {
-            padding: 15px;
+        #feed-container::-webkit-scrollbar {
+            display: none;
         }
 
-        .author-line {
+        .video-slide {
+            height: 100%;
+            width: 100%;
+            scroll-snap-align: start;
+            position: relative;
+            background: #111;
             display: flex;
+            justify-content: center;
             align-items: center;
-            gap: 10px;
-            margin-bottom: 10px;
         }
 
-        .avatar {
-            width: 30px;
-            height: 30px;
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            /* TikTok style fill */
+        }
+
+        /* --- Overlays --- */
+        .overlay {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            padding: 20px;
+            background: linear-gradient(0deg, rgba(0, 0, 0, 0.8) 0%, transparent 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            pointer-events: none;
+            /* Let clicks pass to video */
+        }
+
+        .video-info {
+            margin-bottom: 20px;
+            max-width: 80%;
+            pointer-events: auto;
+        }
+
+        .author-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .author-pic {
+            width: 40px;
+            height: 40px;
             border-radius: 50%;
-            background: #444;
+            border: 2px solid var(--primary);
             object-fit: cover;
         }
 
-        .pioneer-badge {
-            background: gold;
+        .username {
+            font-weight: 700;
+            font-size: 1.1em;
+            text-shadow: 1px 1px 2px black;
+        }
+
+        .pioneer-tag {
+            background: linear-gradient(45deg, #FFD700, #FFA500);
             color: black;
+            font-size: 0.7em;
             padding: 2px 6px;
             border-radius: 4px;
-            font-size: 0.7em;
-            font-weight: bold;
-            vertical-align: middle;
+            font-weight: 800;
+            box-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
         }
 
-        .stats {
-            color: #aaa;
-            font-size: 0.9em;
-            margin-top: 5px;
+        .desc {
+            font-size: 0.95em;
+            opacity: 0.9;
+            text-shadow: 1px 1px 2px black;
         }
 
-        /* Comments */
-        .comments-section {
-            background: #111;
-            padding: 10px;
-            font-size: 0.9em;
-        }
-
-        .comment {
-            margin-bottom: 5px;
-            border-bottom: 1px solid #222;
-            padding-bottom: 5px;
-        }
-
-        .comment-user {
-            font-weight: bold;
-            color: var(--accent);
-        }
-
-        .add-comment {
+        /* --- Side Actions --- */
+        .actions {
+            position: absolute;
+            right: 15px;
+            bottom: 80px;
             display: flex;
+            flex-direction: column;
+            gap: 25px;
+            align-items: center;
+            pointer-events: auto;
+        }
+
+        .action-btn {
+            background: none;
+            border: none;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
             gap: 5px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .action-btn:active {
+            transform: scale(0.8);
+        }
+
+        .icon {
+            width: 45px;
+            height: 45px;
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(5px);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.5em;
+        }
+
+        .count {
+            font-size: 0.8em;
+            font-weight: 500;
+        }
+
+        .liked .icon {
+            background: var(--primary);
+            color: white;
+            animation: pop 0.3s;
+        }
+
+        @keyframes pop {
+            50% {
+                transform: scale(1.2);
+            }
+        }
+
+        /* --- Header / Nav --- */
+        .top-nav {
+            position: absolute;
+            top: 20px;
+            left: 0;
+            width: 100%;
+            z-index: 100;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 20px;
+            pointer-events: none;
+            /* Let clicks pass */
+        }
+
+        .nav-items {
+            pointer-events: auto;
+            display: flex;
+            gap: 15px;
+            font-weight: 600;
+            text-shadow: 1px 1px 4px black;
+        }
+
+        .nav-item {
+            opacity: 0.6;
+            cursor: pointer;
+        }
+
+        .nav-item.active {
+            opacity: 1;
+            border-bottom: 2px solid white;
+        }
+
+        .btn-upload {
+            background: var(--primary);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: bold;
+            border: none;
+            cursor: pointer;
+            pointer-events: auto;
+            box-shadow: 0 4px 15px rgba(255, 46, 99, 0.4);
+        }
+
+        /* --- Modals (Upload / Login) --- */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 200;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(5px);
+        }
+
+        .modal-box {
+            background: #1a1a1a;
+            padding: 30px;
+            border-radius: 25px;
+            width: 85%;
+            max-width: 400px;
+            text-align: center;
+            border: 1px solid #333;
+        }
+
+        .input-group {
+            margin: 15px 0;
+        }
+
+        input {
+            width: 100%;
+            padding: 15px;
+            background: #0d0d0d;
+            border: 1px solid #333;
+            color: white;
+            border-radius: 12px;
+            outline: none;
+        }
+
+        input:focus {
+            border-color: var(--primary);
+        }
+
+        .primary-btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 15px;
+            width: 100%;
+            border-radius: 12px;
+            font-weight: bold;
+            font-size: 1.1em;
+            cursor: pointer;
             margin-top: 10px;
         }
 
-        .add-comment input {
-            margin: 0;
-            flex: 1;
+        /* --- Comment Drawer --- */
+        .drawer {
+            position: fixed;
+            bottom: -80%;
+            left: 0;
+            width: 100%;
+            height: 70%;
+            background: #111;
+            border-radius: 20px 20px 0 0;
+            z-index: 150;
+            transition: bottom 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            display: flex;
+            flex-direction: column;
+            border-top: 1px solid #333;
         }
 
-        .add-comment button {
-            width: auto;
-            margin: 0;
+        .drawer.open {
+            bottom: 0;
         }
 
-        /* User Info */
-        #user-info {
+        .drawer-header {
+            padding: 15px;
             text-align: center;
-            margin-bottom: 20px;
+            border-bottom: 1px solid #222;
+            font-weight: bold;
+        }
+
+        .close-drawer {
+            position: absolute;
+            right: 20px;
+            top: 15px;
+            cursor: pointer;
+        }
+
+        .comments-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .comment-item {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
             font-size: 0.9em;
-            color: #888;
+        }
+
+        .comment-avatar {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: #333;
+        }
+
+        .input-bar {
+            padding: 15px;
+            border-top: 1px solid #222;
+            display: flex;
+            gap: 10px;
         }
     </style>
 </head>
 
 <body>
 
-    <div class="container">
-        <h1>🚀 NEO <span style="font-size:0.5em; vertical-align:super;">Alpha</span></h1>
-
-        <div id="user-info">
-            Detecting user...
+    <!-- Header -->
+    <div class="top-nav">
+        <div class="nav-items">
+            <div class="nav-item">Following</div>
+            <div class="nav-item active">For You</div>
         </div>
+        <button class="btn-upload" onclick="openUpload()">+ Upload</button>
+    </div>
 
-        <!-- Login Form (Simple) -->
-        <div id="login-box" class="upload-box" style="display:none;">
-            <h3>Bem-vindo ao NEO</h3>
-            <input type="text" id="loginUsername" placeholder="Escolha seu User ID...">
-            <button onclick="doLogin()">Entrar / Registrar</button>
+    <!-- MAIN FEED -->
+    <div id="feed-container">
+        <div class="video-slide" style="background:#000;">
+            <h3>Loading NEO Engine...</h3>
         </div>
+    </div>
 
-        <!-- Upload Section -->
-        <div id="upload-box" class="upload-box" style="display:none;">
-            <h3>📹 Publicar Vídeo</h3>
-            <input type="text" id="videoTitle" placeholder="Legenda do vídeo...">
-            <input type="file" id="videoFile" accept="video/mp4,video/quicktime,video/webm">
-            <button onclick="uploadVideo()" id="btnUpload">Upload</button>
-            <p id="uploadStatus" style="font-size:0.8em; color:#aaa;"></p>
+    <!-- COMMENTS DRAWER -->
+    <div id="commentsDrawer" class="drawer">
+        <div class="drawer-header">
+            Comments
+            <span class="close-drawer" onclick="closeComments()">✕</span>
         </div>
+        <div class="comments-list" id="commentsList">
+            <!-- Comments loaded via JS -->
+        </div>
+        <div class="input-bar">
+            <input type="text" id="commentInput" placeholder="Add a comment...">
+            <button class="primary-btn" style="width: auto; padding: 0 20px;" onclick="postComment()">Send</button>
+        </div>
+    </div>
 
-        <!-- Feed -->
-        <div id="feed">loading feed...</div>
+    <!-- UPLOAD MODAL -->
+    <div id="uploadModal" class="modal-overlay">
+        <div class="modal-box">
+            <h2 style="margin-bottom:20px;">Upload to NEO</h2>
+            <div class="input-group">
+                <input type="text" id="uploadTitle" placeholder="Video Caption / Title">
+            </div>
+            <div class="input-group">
+                <input type="file" id="uploadFile" accept="video/*">
+            </div>
+            <button class="primary-btn" onclick="submitUpload()" id="btnSubmitUpload">🚀 Launch Video</button>
+            <button class="primary-btn" style="background:#333; margin-top:10px;"
+                onclick="closeUpload()">Cancel</button>
+            <p id="uploadStatus" style="margin-top:10px; font-size:0.8em; color:#888;"></p>
+        </div>
+    </div>
+
+    <!-- LOGIN MODAL -->
+    <div id="loginModal" class="modal-overlay" style="display: flex;"> <!-- Default Open if not logged in -->
+        <div class="modal-box">
+            <h1>NEO</h1>
+            <p>The Future of Social.</p>
+            <br>
+            <div class="input-group">
+                <input type="text" id="loginUser" placeholder="Choose a Username">
+            </div>
+            <button class="primary-btn" onclick="doLogin()">Enter World</button>
+            <p style="margin-top:20px; font-size:0.8em; color:gray;">Early adopters get Pioneer Badge 🔰</p>
+        </div>
     </div>
 
     <script>
-        const API_URL = ""; // Relative path
-
+        /* --- LOGIC --- */
         let currentUser = null;
+        let currentVideoId = null;
 
-        async function checkUser() {
+        // 1. Check Auth
+        async function init() {
             try {
                 const res = await fetch('/me', { credentials: 'include' });
                 if (res.ok) {
                     const data = await res.json();
                     if (data.user) {
                         currentUser = data;
-                        document.getElementById('user-info').innerHTML = `Logado como: <b>${data.user}</b> ${data.is_pioneer ? '<span class="pioneer-badge">PIONEIRO</span>' : ''}`;
-                        document.getElementById('upload-box').style.display = 'block';
-                        document.getElementById('login-box').style.display = 'none';
+                        document.getElementById('loginModal').style.display = 'none';
+                        loadFeed();
                         return;
                     }
                 }
-            } catch (e) { console.error(e); }
-
-            document.getElementById('user-info').innerText = "Você não está logado.";
-            document.getElementById('upload-box').style.display = 'none';
-            document.getElementById('login-box').style.display = 'block';
+            } catch (e) { console.log("Not logged in"); }
+            // Se vier aqui, login modal continua aberto
         }
 
         async function doLogin() {
-            const username = document.getElementById('loginUsername').value;
-            if (!username) return alert('Digite um nome!');
+            const username = document.getElementById('loginUser').value;
+            if (!username) return alert("Username required");
 
-            const formData = new FormData();
-            formData.append('username', username);
+            const fd = new FormData();
+            fd.append('username', username);
 
-            const res = await fetch('/login', {
-                method: 'POST',
-                body: formData,
-                credentials: 'include' // Important for Cookie!
-            });
-
-            if (res.ok) {
-                window.location.reload();
-            } else {
-                alert('Erro no login');
-            }
+            const res = await fetch('/login', { method: 'POST', body: fd, credentials: 'include' });
+            if (res.ok) window.location.reload();
         }
 
+        // 2. Feed Logic
         async function loadFeed() {
+            const container = document.getElementById('feed-container');
+            container.innerHTML = '<h2>Loading Feed...</h2>'; // Reset
+
             try {
                 const res = await fetch('/feed', { credentials: 'include' });
                 const videos = await res.json();
 
-                const feedDiv = document.getElementById('feed');
-                feedDiv.innerHTML = '';
+                container.innerHTML = '';
 
                 if (videos.length === 0) {
-                    feedDiv.innerHTML = '<p style="text-align:center">Nenhum vídeo ainda.</p>';
+                    container.innerHTML = '<div class="video-slide"><h3>No videos yet. Be the first! 🚀</h3></div>';
                     return;
                 }
 
-                videos.forEach(video => {
-                    const card = document.createElement('div');
-                    card.className = 'video-card';
-
-                    // Comments HTML
-                    let commentsHtml = '';
-                    video.preview_comments.forEach(c => {
-                        commentsHtml += `<div class="comment"><span class="comment-user">${c.username}:</span> ${c.text}</div>`;
-                    });
-
-                    card.innerHTML = `
-                    <video class="video-player" controls preload="metadata">
-                        <source src="${video.url}" type="video/mp4">
-                    </video>
-                    <div class="details">
-                        <div class="author-line">
-                            <div style="background:#555; width:30px; height:30px; border-radius:50%;"></div>
-                            <b>${video.author}</b>
-                            ${video.author_is_pioneer ? '<span class="pioneer-badge">PIONEIRO</span>' : ''}
-                        </div>
-                        <p style="margin: 5px 0;">${video.title}</p>
-                        <div class="stats">
-                            ${video.likes} likes • ${video.comments_count} comentários
-                        </div>
-                        
-                        <div class="comments-section">
-                            ${commentsHtml}
-                            <div class="add-comment">
-                                <input type="text" id="comment-input-${video.id}" placeholder="Comente algo...">
-                                <button onclick="postComment('${video.id}')">Enviar</button>
+                videos.forEach(v => {
+                    const slide = document.createElement('div');
+                    slide.className = 'video-slide';
+                    slide.innerHTML = `
+                    <video src="${v.url}" loop playsinline onclick="togglePlay(this)"></video>
+                    
+                    <div class="overlay">
+                        <div class="video-info">
+                            <div class="author-badge">
+                                <div class="author-pic" style="background: #333 url('${v.author_pic || ''}') center/cover;"></div>
+                                <span class="username">@${v.author}</span>
+                                ${v.author_is_pioneer ? '<span class="pioneer-tag">🔰 PIONEER</span>' : ''}
                             </div>
+                            <p class="desc">${v.title}</p>
                         </div>
                     </div>
+
+                    <div class="actions">
+                        <button class="action-btn ${v.user_has_liked ? 'liked' : ''}" onclick="toggleLike('${v.id}', this)">
+                            <div class="icon">♥</div>
+                            <span class="count">${v.likes}</span>
+                        </button>
+                        
+                        <button class="action-btn" onclick="openComments('${v.id}')">
+                            <div class="icon">💬</div>
+                            <span class="count">${v.comments_count}</span>
+                        </button>
+
+                        <button class="action-btn">
+                            <div class="icon">↗</div>
+                            <span class="count">Share</span>
+                        </button>
+                    </div>
                 `;
-                    feedDiv.appendChild(card);
+                    container.appendChild(slide);
                 });
-            } catch (err) {
-                console.error(err);
-                document.getElementById('feed').innerText = 'Erro ao carregar feed.';
+
+                // Auto-play observer
+                setupObserver();
+
+            } catch (e) {
+                container.innerHTML = '<div class="video-slide">Error loading feed.</div>';
             }
         }
 
-        async function uploadVideo() {
-            const file = document.getElementById('videoFile').files[0];
-            const title = document.getElementById('videoTitle').value;
-            if (!file || !title) return alert('Preencha tudo!');
+        // 3. Interactions
+        function togglePlay(video) {
+            if (video.paused) video.play();
+            else video.pause();
+        }
 
-            const btn = document.getElementById('btnUpload');
+        function setupObserver() {
+            const options = { threshold: 0.6 };
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    const video = entry.target.querySelector('video');
+                    if (entry.isIntersecting) {
+                        video.currentTime = 0;
+                        video.play().catch(e => console.log("Autoplay blocked"));
+                    } else {
+                        video.pause();
+                    }
+                });
+            }, options);
+
+            document.querySelectorAll('.video-slide').forEach(slide => {
+                observer.observe(slide);
+            });
+        }
+
+        async function toggleLike(vidId, btn) {
+            // Optimistic UI
+            const isLiked = btn.classList.contains('liked');
+            btn.classList.toggle('liked');
+            const countSpan = btn.querySelector('.count');
+            let count = parseInt(countSpan.innerText);
+            countSpan.innerText = isLiked ? count - 1 : count + 1;
+
+            await fetch(`/toggle_like/${vidId}`, { method: 'POST', credentials: 'include' });
+        }
+
+        // 4. Comments
+        async function openComments(vidId) {
+            currentVideoId = vidId;
+            const drawer = document.getElementById('commentsDrawer');
+            const list = document.getElementById('commentsList');
+
+            list.innerHTML = 'Loading comments...';
+            drawer.classList.add('open');
+
+            const res = await fetch(`/comments/${vidId}`);
+            const comments = await res.json();
+
+            list.innerHTML = '';
+            comments.forEach(c => {
+                const div = document.createElement('div');
+                div.className = 'comment-item';
+                div.innerHTML = `
+                <div class="comment-avatar"></div>
+                <div>
+                    <div style="font-weight:bold; color:#aaa;">
+                        ${c.username} ${c.is_pioneer ? '🔰' : ''}
+                    </div>
+                    <div>${c.text}</div>
+                </div>
+            `;
+                list.appendChild(div);
+            });
+        }
+
+        function closeComments() {
+            document.getElementById('commentsDrawer').classList.remove('open');
+        }
+
+        async function postComment() {
+            const input = document.getElementById('commentInput');
+            if (!input.value) return;
+
+            const fd = new FormData();
+            fd.append('text', input.value);
+
+            const res = await fetch(`/video/${currentVideoId}/comment`, { method: 'POST', body: fd, credentials: 'include' });
+            if (res.ok) {
+                input.value = '';
+                openComments(currentVideoId); // Reload
+            }
+        }
+
+        // 5. Upload
+        function openUpload() { document.getElementById('uploadModal').style.display = 'flex'; }
+        function closeUpload() { document.getElementById('uploadModal').style.display = 'none'; }
+
+        async function submitUpload() {
+            const title = document.getElementById('uploadTitle').value;
+            const file = document.getElementById('uploadFile').files[0];
+
+            if (!file || !title) return alert("File and Title required");
+
+            const btn = document.getElementById('btnSubmitUpload');
             const status = document.getElementById('uploadStatus');
-
             btn.disabled = true;
-            btn.innerText = "Enviando...";
-            status.innerText = "Isso pode levar alguns segundos (Cloudinary init)...";
+            btn.innerText = "Uploading (Wait for Cloudinary)...";
 
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('title', title);
+            const fd = new FormData();
+            fd.append('title', title);
+            fd.append('file', file);
 
             try {
-                const res = await fetch('/upload', {
-                    method: 'POST',
-                    body: formData,
-                    credentials: 'include'
-                });
-                const data = await res.json();
-
+                const res = await fetch('/upload', { method: 'POST', body: fd, credentials: 'include' });
                 if (res.ok) {
-                    alert('Sucesso!');
-                    window.location.reload();
+                    alert("Posted! 🚀");
+                    closeUpload();
+                    loadFeed();
                 } else {
-                    alert('Erro: ' + (data.detail || data.error));
+                    alert("Error uploading.");
                 }
-            } catch (e) {
-                alert('Erro de conexão');
-            } finally {
+            } catch (e) { alert("Error"); }
+            finally {
                 btn.disabled = false;
-                btn.innerText = "Upload";
-                status.innerText = "";
+                btn.innerText = "🚀 Launch Video";
             }
         }
 
-        async function postComment(videoId) {
-            const input = document.getElementById(`comment-input-${videoId}`);
-            const text = input.value;
-            if (!text) return;
+        // INIT
+        init();
 
-            const formData = new FormData();
-            formData.append('text', text);
-
-            const res = await fetch(`/video/${videoId}/comment`, {
-                method: 'POST',
-                body: formData,
-                credentials: 'include'
-            });
-
-            if (res.ok) {
-                // Recarrega feed ou apenas adiciona visualmente (reload simples por enquanto)
-                loadFeed();
-            } else {
-                alert('Falha ao comentar. Está logado?');
-            }
-        }
-
-        // Init
-        checkUser();
-        loadFeed();
     </script>
-
 </body>
 
 </html>

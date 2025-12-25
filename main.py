@@ -50,11 +50,15 @@ else:
 
 # --- SUPER BLINDAGEM DE BANCO ---
 # Garante que a coluna existe antes de QUALQUER coisa
+# --- SUPER BLINDAGEM DE BANCO ---
+# Garante que as colunas existam antes de QUALQUER coisa
 try:
     with engine.connect() as conn:
+        # Colunas requeridas pelas orders do CEO
         conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_pioneer BOOLEAN DEFAULT FALSE;"))
+        conn.execute(text("ALTER TABLE comments ADD COLUMN IF NOT EXISTS username TEXT;"))
         conn.commit()
-    print("✅ Coluna 'is_pioneer' verificada/criada com sucesso.")
+    print("✅ Colunas 'is_pioneer' e 'username(comments)' verificadas/criadas com sucesso.")
 except Exception as e:
     print(f"⚠️ Aviso de verificação de tabela (pode ser SQLite ou erro de permissão): {e}")
 
