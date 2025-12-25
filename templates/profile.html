@@ -46,8 +46,15 @@
         </div>
 
         <div style="display:flex; justify-content:center; gap:10px; margin-top:20px;">
+            {% if is_me %}
             <button class="primary-btn" style="width: auto; padding: 10px 30px; margin:0; font-size: 0.9em;"
                 onclick="openEditProfile()">Editar Perfil</button>
+            <button class="primary-btn" style="width: auto; padding: 10px 15px; margin:0; background: #333;"
+                onclick="alert('Settings')"><i class="fas fa-cog"></i></button>
+            {% else %}
+            <button class="primary-btn" style="width: auto; padding: 10px 40px; margin:0; font-size: 0.9em;"
+                onclick="alert('Follow logic coming soon')">Seguir</button>
+            {% endif %}
         </div>
     </div>
 

@@ -147,7 +147,7 @@
                     <video src="${v.url}" loop playsinline onclick="handleVideoClick(this, '${v.id}')"></video>
                     <div class="overlay">
                         <div class="video-info">
-                            <div class="author-badge" onclick="openProfile('${v.author}')">
+                            <div class="author-badge" onclick="window.location.href='/user/${v.author}'">
                                 <img src="${v.author_pic}" class="author-pic">
                                 <span class="username">@${v.author}</span>
                                 ${v.author_is_pioneer ? '<span class="pioneer-tag">🔰</span>' : ''}

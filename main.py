@@ -192,7 +192,8 @@ async def my_profile(request: Request, neo_session: Optional[str] = Cookie(None)
             "request": request,
             "user": user,
             "videos": [{"url": v.url, "likes": v.likes} for v in videos],
-            "likes_count": likes_count or 0
+            "likes_count": likes_count or 0,
+            "is_me": True
         })
     finally:
         db.close()
@@ -226,8 +227,8 @@ async def get_feed(type: str = "foryou", neo_session: Optional[str] = Cookie(Non
     return JSONResponse(content=videos)
 
 # Nova Rota: Perfil Público
-@app.get("/user/{username}")
-async def get_public_profile(username: str):
+@app.get("/api/user/{username}")
+async def get_public_profile_api(username: str):
     db = SessionLocal()
     try:
         user = db.query(User).filter(User.username == username).first()
@@ -250,6 +251,32 @@ async def get_public_profile(username: str):
             },
             "videos": [{"id": v.id, "url": v.url} for v in videos]
         }
+    finally:
+        db.close()
+
+@app.get("/user/{username}", response_class=HTMLResponse)
+async def get_public_profile_page(request: Request, username: str, neo_session: Optional[str] = Cookie(None)):
+    current_user_name = get_user_from_session(neo_session)
+    # If viewing own profile, redirect to /me
+    if current_user_name == username:
+        return RedirectResponse(url="/me")
+
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.username == username).first()
+        if not user:
+            return templates.TemplateResponse("index.html", {"request": request}) # Fallback to feed if not found
+        
+        videos = db.query(Video).filter(Video.author == username).order_by(Video.created_at.desc()).all()
+        likes_count = db.execute(text("SELECT COUNT(*) FROM likes l JOIN videos v ON l.video_id=v.id WHERE v.author=:u"), {"u":username}).scalar()
+
+        return templates.TemplateResponse("profile.html", {
+            "request": request,
+            "user": user,
+            "videos": [{"url": v.url, "likes": v.likes} for v in videos],
+            "likes_count": likes_count or 0,
+            "is_me": False
+        })
     finally:
         db.close()
 
