@@ -50,7 +50,7 @@
         <div class="comments-list" id="commentsList"></div>
         <div class="input-bar">
             <input type="text" id="commentInput" placeholder="Add comment...">
-            <button class="primary-btn" style="width:auto; padding:0 20px;" onclick="postComment()">Send</button>
+            <button class="primary-btn" style="width:auto; padding:0 20px;" onclick="postComment(event)">Send</button>
         </div>
     </div>
 
@@ -432,7 +432,8 @@
             });
         }
         function closeComments() { document.getElementById('commentsDrawer').classList.remove('open'); }
-        async function postComment() {
+        async function postComment(e) {
+            if (e) e.preventDefault();
             if (!currentUser) { document.getElementById('loginModal').style.display = 'flex'; return; }
             const txt = document.getElementById('commentInput').value;
             if (!txt) return;

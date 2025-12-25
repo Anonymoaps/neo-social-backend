@@ -416,13 +416,23 @@ async def my_profile(request: Request):
 
 @app.get("/user/{username}", response_class=HTMLResponse)
 async def get_public_profile_page(request: Request, username: str):
+    # Get current user safely
     current_user_name = get_user_from_session(request)
-    if current_user_name == username: return RedirectResponse(url="/me")
+    
+    # If viewing own profile, redirect to /me
+    if current_user_name and current_user_name == username: 
+        return RedirectResponse(url="/me")
 
     db = SessionLocal()
     try:
+        # Get Target User
+        target_user = db.query(User).filter(User.username == username).first()
+        if not target_user: 
+            # If user doesn't exist, can render a "User not found" or redirect home
+            print(f"Profile not found for: {username}")
+            return RedirectResponse(url="/")
+            
         data = get_profile_data(db, username, current_user_name)
-        if not data: return templates.TemplateResponse("index.html", {"request": request}) # Fallback
         
         return templates.TemplateResponse("profile.html", {
             "request": request,
@@ -550,7 +560,7 @@ async def comment_video(request: Request, comment: CommentModel):
     db.add(Comment(text=comment.text, username=user, video_id=comment.video_id))
     db.commit()
     db.close()
-    return {"status": "success", "user": user, "text": comment.text}
+    return {"status": "success", "message": "Comment added"} # Pure JSON, no redirects
 
 @app.get("/comments/{video_id}")
 async def get_comments(video_id: str):
