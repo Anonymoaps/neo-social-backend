@@ -27,18 +27,15 @@
             background-color: var(--bg);
             color: var(--text);
             overflow: hidden;
-            /* App feel */
             height: 100vh;
         }
 
-        /* --- Fullscreen Vertical Feed --- */
         #feed-container {
             height: 100%;
             width: 100%;
             overflow-y: scroll;
             scroll-snap-type: y mandatory;
             scrollbar-width: none;
-            /* Firefox */
         }
 
         #feed-container::-webkit-scrollbar {
@@ -60,10 +57,8 @@
             width: 100%;
             height: 100%;
             object-fit: cover;
-            /* TikTok style fill */
         }
 
-        /* --- Overlays --- */
         .overlay {
             position: absolute;
             bottom: 0;
@@ -75,7 +70,6 @@
             flex-direction: column;
             justify-content: flex-end;
             pointer-events: none;
-            /* Let clicks pass to video */
         }
 
         .video-info {
@@ -121,7 +115,6 @@
             text-shadow: 1px 1px 2px black;
         }
 
-        /* --- Side Actions --- */
         .actions {
             position: absolute;
             right: 15px;
@@ -178,7 +171,6 @@
             }
         }
 
-        /* --- Header / Nav --- */
         .top-nav {
             position: absolute;
             top: 20px;
@@ -189,7 +181,6 @@
             justify-content: space-between;
             padding: 0 20px;
             pointer-events: none;
-            /* Let clicks pass */
         }
 
         .nav-items {
@@ -223,7 +214,6 @@
             box-shadow: 0 4px 15px rgba(255, 46, 99, 0.4);
         }
 
-        /* --- Modals (Upload / Login) --- */
         .modal-overlay {
             display: none;
             position: fixed;
@@ -279,7 +269,6 @@
             margin-top: 10px;
         }
 
-        /* --- Comment Drawer --- */
         .drawer {
             position: fixed;
             bottom: -80%;
@@ -344,7 +333,6 @@
 
 <body>
 
-    <!-- Header -->
     <div class="top-nav">
         <div class="nav-items">
             <div class="nav-item">Following</div>
@@ -353,38 +341,29 @@
         <button class="btn-upload" onclick="openUpload()">+ Upload</button>
     </div>
 
-    <!-- MAIN FEED -->
     <div id="feed-container">
         <div class="video-slide" style="background:#000;">
             <h3>Loading NEO Engine...</h3>
         </div>
     </div>
 
-    <!-- COMMENTS DRAWER -->
     <div id="commentsDrawer" class="drawer">
         <div class="drawer-header">
             Comments
             <span class="close-drawer" onclick="closeComments()">✕</span>
         </div>
-        <div class="comments-list" id="commentsList">
-            <!-- Comments loaded via JS -->
-        </div>
+        <div class="comments-list" id="commentsList"></div>
         <div class="input-bar">
             <input type="text" id="commentInput" placeholder="Add a comment...">
             <button class="primary-btn" style="width: auto; padding: 0 20px;" onclick="postComment()">Send</button>
         </div>
     </div>
 
-    <!-- UPLOAD MODAL -->
     <div id="uploadModal" class="modal-overlay">
         <div class="modal-box">
             <h2 style="margin-bottom:20px;">Upload to NEO</h2>
-            <div class="input-group">
-                <input type="text" id="uploadTitle" placeholder="Video Caption / Title">
-            </div>
-            <div class="input-group">
-                <input type="file" id="uploadFile" accept="video/*">
-            </div>
+            <div class="input-group"><input type="text" id="uploadTitle" placeholder="Video Caption"></div>
+            <div class="input-group"><input type="file" id="uploadFile" accept="video/*"></div>
             <button class="primary-btn" onclick="submitUpload()" id="btnSubmitUpload">🚀 Launch Video</button>
             <button class="primary-btn" style="background:#333; margin-top:10px;"
                 onclick="closeUpload()">Cancel</button>
@@ -392,26 +371,20 @@
         </div>
     </div>
 
-    <!-- LOGIN MODAL -->
-    <div id="loginModal" class="modal-overlay" style="display: flex;"> <!-- Default Open if not logged in -->
+    <div id="loginModal" class="modal-overlay" style="display: flex;">
         <div class="modal-box">
             <h1>NEO</h1>
-            <p>The Future of Social.</p>
-            <br>
-            <div class="input-group">
-                <input type="text" id="loginUser" placeholder="Choose a Username">
-            </div>
+            <p>The Future of Social.</p><br>
+            <div class="input-group"><input type="text" id="loginUser" placeholder="Choose a Username"></div>
             <button class="primary-btn" onclick="doLogin()">Enter World</button>
             <p style="margin-top:20px; font-size:0.8em; color:gray;">Early adopters get Pioneer Badge 🔰</p>
         </div>
     </div>
 
     <script>
-        /* --- LOGIC --- */
         let currentUser = null;
         let currentVideoId = null;
 
-        // 1. Check Auth
         async function init() {
             try {
                 const res = await fetch('/me', { credentials: 'include' });
@@ -425,33 +398,27 @@
                     }
                 }
             } catch (e) { console.log("Not logged in"); }
-            // Se vier aqui, login modal continua aberto
         }
 
         async function doLogin() {
             const username = document.getElementById('loginUser').value;
             if (!username) return alert("Username required");
-
             const fd = new FormData();
             fd.append('username', username);
-
             const res = await fetch('/login', { method: 'POST', body: fd, credentials: 'include' });
             if (res.ok) window.location.reload();
         }
 
-        // 2. Feed Logic
         async function loadFeed() {
             const container = document.getElementById('feed-container');
-            container.innerHTML = '<h2>Loading Feed...</h2>'; // Reset
-
+            container.innerHTML = '<h2>Loading Feed...</h2>';
             try {
                 const res = await fetch('/feed', { credentials: 'include' });
                 const videos = await res.json();
-
                 container.innerHTML = '';
 
                 if (videos.length === 0) {
-                    container.innerHTML = '<div class="video-slide"><h3>No videos yet. Be the first! 🚀</h3></div>';
+                    container.innerHTML = '<div class="video-slide" style="flex-direction:column;"><h1>🚀</h1><br><h3>Seja o primeiro a postar na NEO! 🚀</h3></div>';
                     return;
                 }
 
@@ -460,94 +427,60 @@
                     slide.className = 'video-slide';
                     slide.innerHTML = `
                     <video src="${v.url}" loop playsinline onclick="togglePlay(this)"></video>
-                    
                     <div class="overlay">
                         <div class="video-info">
                             <div class="author-badge">
-                                <div class="author-pic" style="background: #333 url('${v.author_pic || ''}') center/cover;"></div>
                                 <span class="username">@${v.author}</span>
                                 ${v.author_is_pioneer ? '<span class="pioneer-tag">🔰 PIONEER</span>' : ''}
                             </div>
                             <p class="desc">${v.title}</p>
                         </div>
                     </div>
-
                     <div class="actions">
                         <button class="action-btn ${v.user_has_liked ? 'liked' : ''}" onclick="toggleLike('${v.id}', this)">
-                            <div class="icon">♥</div>
-                            <span class="count">${v.likes}</span>
+                            <div class="icon">♥</div><span class="count">${v.likes}</span>
                         </button>
-                        
                         <button class="action-btn" onclick="openComments('${v.id}')">
-                            <div class="icon">💬</div>
-                            <span class="count">${v.comments_count}</span>
+                            <div class="icon">💬</div><span class="count">${v.comments_count}</span>
                         </button>
-
-                        <button class="action-btn">
-                            <div class="icon">↗</div>
-                            <span class="count">Share</span>
-                        </button>
-                    </div>
-                `;
+                        <button class="action-btn"><div class="icon">↗</div><span class="count">Share</span></button>
+                    </div>`;
                     container.appendChild(slide);
                 });
-
-                // Auto-play observer
                 setupObserver();
-
-            } catch (e) {
-                container.innerHTML = '<div class="video-slide">Error loading feed.</div>';
-            }
+            } catch (e) { container.innerHTML = '<div class="video-slide">Error loading feed.</div>'; }
         }
 
-        // 3. Interactions
-        function togglePlay(video) {
-            if (video.paused) video.play();
-            else video.pause();
-        }
+        function togglePlay(video) { if (video.paused) video.play(); else video.pause(); }
 
         function setupObserver() {
-            const options = { threshold: 0.6 };
             const observer = new IntersectionObserver((entries) => {
                 entries.forEach(entry => {
                     const video = entry.target.querySelector('video');
-                    if (entry.isIntersecting) {
-                        video.currentTime = 0;
-                        video.play().catch(e => console.log("Autoplay blocked"));
-                    } else {
-                        video.pause();
-                    }
+                    if (entry.isIntersecting) { video.currentTime = 0; video.play().catch(e => console.log("Autoplay blocked")); }
+                    else { video.pause(); }
                 });
-            }, options);
-
-            document.querySelectorAll('.video-slide').forEach(slide => {
-                observer.observe(slide);
-            });
+            }, { threshold: 0.6 });
+            document.querySelectorAll('.video-slide').forEach(slide => observer.observe(slide));
         }
 
         async function toggleLike(vidId, btn) {
-            // Optimistic UI
             const isLiked = btn.classList.contains('liked');
             btn.classList.toggle('liked');
             const countSpan = btn.querySelector('.count');
             let count = parseInt(countSpan.innerText);
             countSpan.innerText = isLiked ? count - 1 : count + 1;
-
             await fetch(`/toggle_like/${vidId}`, { method: 'POST', credentials: 'include' });
         }
 
-        // 4. Comments
         async function openComments(vidId) {
             currentVideoId = vidId;
             const drawer = document.getElementById('commentsDrawer');
             const list = document.getElementById('commentsList');
-
             list.innerHTML = 'Loading comments...';
             drawer.classList.add('open');
-
             const res = await fetch(`/comments/${vidId}`);
             const comments = await res.json();
-
             list.innerHTML = '';
             comments.forEach(c => {
                 const div = document.createElement('div');
@@ -555,72 +488,45 @@
                 div.innerHTML = `
                 <div class="comment-avatar"></div>
                 <div>
-                    <div style="font-weight:bold; color:#aaa;">
-                        ${c.username} ${c.is_pioneer ? '🔰' : ''}
-                    </div>
+                    <div style="font-weight:bold; color:#aaa;">${c.username} ${c.is_pioneer ? '🔰' : ''}</div>
                     <div>${c.text}</div>
-                </div>
-            `;
+                </div>`;
                 list.appendChild(div);
             });
         }
 
-        function closeComments() {
-            document.getElementById('commentsDrawer').classList.remove('open');
-        }
+        function closeComments() { document.getElementById('commentsDrawer').classList.remove('open'); }
 
         async function postComment() {
             const input = document.getElementById('commentInput');
             if (!input.value) return;
-
             const fd = new FormData();
             fd.append('text', input.value);
-
             const res = await fetch(`/video/${currentVideoId}/comment`, { method: 'POST', body: fd, credentials: 'include' });
-            if (res.ok) {
-                input.value = '';
-                openComments(currentVideoId); // Reload
-            }
+            if (res.ok) { input.value = ''; openComments(currentVideoId); }
         }
 
-        // 5. Upload
         function openUpload() { document.getElementById('uploadModal').style.display = 'flex'; }
         function closeUpload() { document.getElementById('uploadModal').style.display = 'none'; }
 
         async function submitUpload() {
             const title = document.getElementById('uploadTitle').value;
             const file = document.getElementById('uploadFile').files[0];
-
             if (!file || !title) return alert("File and Title required");
-
             const btn = document.getElementById('btnSubmitUpload');
-            const status = document.getElementById('uploadStatus');
-            btn.disabled = true;
-            btn.innerText = "Uploading (Wait for Cloudinary)...";
-
+            btn.disabled = true; btn.innerText = "Uploading...";
             const fd = new FormData();
             fd.append('title', title);
             fd.append('file', file);
-
             try {
                 const res = await fetch('/upload', { method: 'POST', body: fd, credentials: 'include' });
-                if (res.ok) {
-                    alert("Posted! 🚀");
-                    closeUpload();
-                    loadFeed();
-                } else {
-                    alert("Error uploading.");
-                }
+                if (res.ok) { alert("Posted! 🚀"); closeUpload(); loadFeed(); }
+                else { alert("Error uploading."); }
             } catch (e) { alert("Error"); }
-            finally {
-                btn.disabled = false;
-                btn.innerText = "🚀 Launch Video";
-            }
+            finally { btn.disabled = false; btn.innerText = "🚀 Launch Video"; }
         }
 
-        // INIT
         init();
-
     </script>
 </body>
 

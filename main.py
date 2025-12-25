@@ -26,7 +26,7 @@ app.add_middleware(
     allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
-    allow_credentials=True, # Permitir credenciais para cookies
+    allow_credentials=True, 
 )
 
 os.makedirs("templates", exist_ok=True)
@@ -39,7 +39,6 @@ templates = Jinja2Templates(directory="templates")
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 if DATABASE_URL:
-    # Fix para Render/Heroku que usam postgres:// antigo
     if DATABASE_URL.startswith("postgres://"):
         DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
     engine = create_engine(DATABASE_URL)
@@ -48,22 +47,19 @@ else:
     DATABASE_URL = "sqlite:///neo.db"
     engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 
-# --- SUPER BLINDAGEM DE BANCO ---
-# Garante que a coluna existe antes de QUALQUER coisa
-# --- SUPER BLINDAGEM DE BANCO ---
+# --- SUPER BLINDAGEM DE BANCO (SQL FIX) ---
 # Garante que as colunas existam antes de QUALQUER coisa
 try:
     with engine.connect() as conn:
-        # Colunas requeridas pelas orders do CEO
         conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_pioneer BOOLEAN DEFAULT FALSE;"))
         conn.execute(text("ALTER TABLE comments ADD COLUMN IF NOT EXISTS username TEXT;"))
+        conn.execute(text("ALTER TABLE comments ADD COLUMN IF NOT EXISTS timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP;"))
         conn.commit()
-    print("✅ Colunas 'is_pioneer' e 'username(comments)' verificadas/criadas com sucesso.")
+    print("✅ Colunas 'is_pioneer', 'username', 'timestamp' verificadas/criadas com sucesso.")
 except Exception as e:
     print(f"⚠️ Aviso de verificação de tabela (pode ser SQLite ou erro de permissão): {e}")
 
 # --- CLOUDINARY SETUP ---
-# Não remover nem alterar credenciais conforme solicitado
 cloudinary.config( 
   cloud_name = os.getenv("CLOUD_NAME", ""), 
   api_key = os.getenv("CLOUD_API_KEY", ""), 
@@ -79,7 +75,7 @@ class User(Base):
     username = Column(String, primary_key=True)
     created_at = Column(String)
     profile_pic = Column(String)
-    is_pioneer = Column(Boolean, default=False) # Lógica de Pioneiro
+    is_pioneer = Column(Boolean, default=False) 
 
 class Video(Base):
     __tablename__ = "videos"
@@ -91,7 +87,6 @@ class Video(Base):
     author = Column(String, ForeignKey("users.username"))
     created_at = Column(DateTime, default=datetime.utcnow)
     
-    # Relationships
     comments = relationship("Comment", back_populates="video", cascade="all, delete-orphan")
 
 class Comment(Base):
@@ -99,7 +94,7 @@ class Comment(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     text = Column(String)
     username = Column(String, ForeignKey("users.username"))
-    timestamp = Column(DateTime, default=datetime.utcnow)
+    timestamp = Column(DateTime, default=datetime.utcnow) # Mapeia para a coluna criada via SQL
     video_id = Column(String, ForeignKey("videos.id"))
     
     video = relationship("Video", back_populates="comments")
@@ -137,7 +132,7 @@ def get_user_from_session(token):
 # --- ENDPOINTS ---
 
 @app.post("/login")
-async def login(response: Response, username: str = Form(...)): # Suporta Google Login enviando username = email
+async def login(response: Response, username: str = Form(...)): 
     db = SessionLocal()
     try:
         user = db.query(User).filter(User.username == username).first()
@@ -159,7 +154,6 @@ async def login(response: Response, username: str = Form(...)): # Suporta Google
         session_token = str(uuid.uuid4())
         active_sessions[session_token] = username
         
-        # Cookie seguro
         response.set_cookie(
             key="neo_session", 
             value=session_token, 
@@ -188,7 +182,7 @@ async def get_current_user(neo_session: Optional[str] = Cookie(None)):
             return {
                 "user": user.username, 
                 "profile_pic": user.profile_pic,
-                "is_pioneer": user.is_pioneer # Agora seguro pois a coluna existe
+                "is_pioneer": user.is_pioneer
             }
         return {"user": user_name, "profile_pic": None}
     finally:
@@ -201,11 +195,9 @@ async def read_root(request: Request):
 @app.get("/feed")
 async def get_feed(type: str = "foryou", neo_session: Optional[str] = Cookie(None)):
     current_user = get_user_from_session(neo_session)
-    # Garante que None seja tratado explicitamente, embora SQL 'user_id = NULL' já retorne 0
     user_param = current_user if current_user else "" 
     
     with engine.connect() as conn:
-        # Simplifiquei a query para garantir compatibilidade
         query = text("""
             SELECT 
                 v.id, v.title, v.url, v.filter_type, v.author, v.created_at,
@@ -217,7 +209,6 @@ async def get_feed(type: str = "foryou", neo_session: Optional[str] = Cookie(Non
             LEFT JOIN users u ON v.author = u.username
             ORDER BY v.created_at DESC
         """)
-        # Passa parâmetro seguro
         result = conn.execute(query, {"cu": user_param})
         rows = result.mappings().all()
 
@@ -226,22 +217,17 @@ async def get_feed(type: str = "foryou", neo_session: Optional[str] = Cookie(Non
     
     db = SessionLocal()
     for row in rows:
-        # Fetch Top 3 Comments for preview
-        c_objs = db.query(Comment).filter(Comment.video_id == row["id"]).order_by(Comment.timestamp.desc()).limit(3).all()
-        preview_comments = [{"text": c.text, "username": c.username} for c in c_objs]
-
         videos.append({
             "id": row["id"],
             "title": row["title"],
             "url": row["url"],
             "likes": row["total_likes"],
             "comments_count": row["total_comments"],
-            "preview_comments": preview_comments,
             "user_has_liked": row["user_liked"] > 0 if row["user_liked"] else False, 
             "filter_type": row["filter_type"],
             "author": row["author"],
             "author_pic": row["author_pic"],
-            "author_is_pioneer": row["author_is_pioneer"], # Exibir selo no front
+            "author_is_pioneer": row["author_is_pioneer"], 
             "is_own_video": (row["author"] == current_user) if current_user else False,
             "can_delete": (row["author"] == current_user) or is_admin if current_user else False
         })
@@ -249,7 +235,6 @@ async def get_feed(type: str = "foryou", neo_session: Optional[str] = Cookie(Non
 
     return JSONResponse(content=videos)
 
-# Rota Unificada de Upload
 @app.post("/upload")
 async def upload_video(
     file: UploadFile = File(...), 
@@ -258,10 +243,9 @@ async def upload_video(
 ):
     author = get_user_from_session(neo_session)
     if not author:
-        raise HTTPException(status_code=401, detail="Por favor, faça login para postar.")
+        raise HTTPException(status_code=401, detail="Log in required")
     
     try:
-        # Upload para Cloudinary
         print(f"Iniciando upload para Cloudinary: {title}")
         upload_result = cloudinary.uploader.upload(file.file, resource_type="video", folder="neo_videos")
         secure_url = upload_result["secure_url"]
@@ -279,10 +263,10 @@ async def upload_video(
         db.commit()
         db.close()
         
-        return JSONResponse(content={"message": "Upload realizado com sucesso!", "url": secure_url})
+        return JSONResponse(content={"message": "Upload success", "url": secure_url})
     except Exception as e:
         print(f"Erro no upload: {str(e)}")
-        return JSONResponse(content={"error": f"Falha no upload: {str(e)}"}, status_code=500)
+        return JSONResponse(content={"error": f"Internal Error: {str(e)}"}, status_code=500)
 
 @app.post("/video/{video_id}/comment")
 async def comment_video(
@@ -303,7 +287,7 @@ async def comment_video(
         )
         db.add(new_comment)
         db.commit()
-        return {"message": "Comentário adicionado", "user": user, "text": text}
+        return {"message": "Success"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
@@ -316,7 +300,6 @@ async def get_comments(video_id: str):
         comments = db.query(Comment).filter(Comment.video_id == video_id).order_by(Comment.timestamp.asc()).all()
         result = []
         for c in comments:
-            # Buscar info extra do usuário (pic, pioneer) se quiser
             u = db.query(User).filter(User.username == c.username).first()
             result.append({
                 "id": c.id,
@@ -329,25 +312,26 @@ async def get_comments(video_id: str):
     finally:
         db.close()
 
-# Rota para deletar vídeo (Admin ou Dono)
-@app.delete("/delete_video/{video_id}")
-async def delete_video(video_id: str, neo_session: Optional[str] = Cookie(None)):
+@app.post("/toggle_like/{video_id}")
+async def toggle_like(video_id: str, neo_session: Optional[str] = Cookie(None)):
     user = get_user_from_session(neo_session)
     if not user:
         raise HTTPException(status_code=401, detail="Login required")
-        
+
     db = SessionLocal()
     try:
-        video = db.query(Video).filter(Video.id == video_id).first()
-        if not video:
-             raise HTTPException(status_code=404, detail="Video not found")
-        
-        if video.author != user and user != "@admin":
-             raise HTTPException(status_code=403, detail="Not authorized")
-             
-        db.delete(video)
+        like = db.query(Like).filter(Like.user_id == user, Like.video_id == video_id).first()
+        liked = False
+        if like:
+            db.delete(like)
+            liked = False
+        else:
+            new_like = Like(user_id=user, video_id=video_id)
+            db.add(new_like)
+            liked = True
         db.commit()
-        return {"message": "Video deleted"}
+        
+        return {"liked": liked}
     finally:
         db.close()
 
