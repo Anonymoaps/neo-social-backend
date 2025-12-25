@@ -410,21 +410,27 @@ async def upload_video(request: Request, file: UploadFile = File(...), title: st
     except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
-@app.post("/video/{video_id}/comment")
-async def comment_video(request: Request, video_id: str, text: str = Form(...)):
+from pydantic import BaseModel
+
+class CommentModel(BaseModel):
+    video_id: str
+    text: str
+
+@app.post("/comment")
+async def comment_video(request: Request, comment: CommentModel):
     user = get_user_from_session(request)
     if not user: raise HTTPException(status_code=401)
+    
     db = SessionLocal()
-    # Ensure video exists
-    vid = db.query(Video).filter(Video.id == video_id).first()
+    vid = db.query(Video).filter(Video.id == comment.video_id).first()
     if not vid:
         db.close()
         raise HTTPException(404, "Video not found")
         
-    db.add(Comment(text=text, username=user, video_id=video_id))
+    db.add(Comment(text=comment.text, username=user, video_id=comment.video_id))
     db.commit()
     db.close()
-    return {"message": "Success"}
+    return {"status": "success", "user": user, "text": comment.text}
 
 @app.get("/comments/{video_id}")
 async def get_comments(video_id: str):
