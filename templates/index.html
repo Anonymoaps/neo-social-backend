@@ -433,17 +433,30 @@
         }
         function closeComments() { document.getElementById('commentsDrawer').classList.remove('open'); }
         async function postComment(e) {
-            if (e) e.preventDefault();
+            e.preventDefault(); // OBRIGATÓRIO: Impede refresh
             if (!currentUser) { document.getElementById('loginModal').style.display = 'flex'; return; }
             const txt = document.getElementById('commentInput').value;
             if (!txt) return;
 
-            await fetch('/comment', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ video_id: currentVideoId, text: txt })
-            });
-            window.location.reload(); // Force reload as requested
+            try {
+                const res = await fetch('/comment', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ video_id: currentVideoId, text: txt })
+                });
+
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.status === "success") {
+                        window.location.reload();
+                    }
+                } else {
+                    alert("Erro ao enviar comentário");
+                }
+            } catch (err) {
+                console.error(err);
+                alert("Erro de conexão");
+            }
         }
 
         /* UPLOAD */
