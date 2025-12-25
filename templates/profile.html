@@ -12,13 +12,29 @@
 
 <body style="overflow-y: auto;">
 
-    <div class="top-nav" style="position: sticky; background: rgba(0,0,0,0.8); backdrop-filter: blur(10px);">
+    <!-- Top Nav Profile -->
+    <div class="top-nav"
+        style="position: sticky; background: rgba(0,0,0,0.8); backdrop-filter: blur(10px); z-index: 9999;">
         <a href="/" class="nav-item" style="font-size: 1.5em; text-decoration: none; color: white;">←</a>
         <div style="font-weight: bold; font-size: 1.1em;">{{ user.username }} <span
                 style="font-size:0.8em; color:gold;">{% if user.is_pioneer %}🔰{% endif %}</span></div>
-        <div class="nav-item"><i class="fas fa-ellipsis-h"></i></div>
+        <div class="nav-item" onclick="toggleSettings()"><i class="fas fa-ellipsis-h"></i></div>
     </div>
 
+    <!-- Settings Menu -->
+    <div id="settingsMenu"
+        style="display:none; position:fixed; top:60px; right:10px; background:#111; border:1px solid #333; padding:10px; border-radius:10px; z-index:9999;">
+        {% if is_me %}
+        <button onclick="handleLogout()"
+            style="background:transparent; border:none; color:red; font-size:1em; padding:5px 10px;">Sair /
+            Logout</button>
+        {% else %}
+        <button onclick="alert('Report user?')"
+            style="background:transparent; border:none; color:white; font-size:1em; padding:5px 10px;">Reportar</button>
+        {% endif %}
+    </div>
+
+    <!-- Profile Header -->
     <div class="profile-header">
         <div style="position:relative; display:inline-block;">
             <img src="{{ user.profile_pic }}" class="p-pic" alt="Profile">
@@ -45,15 +61,14 @@
             </div>
         </div>
 
+        <!-- Buttons -->
         <div style="display:flex; justify-content:center; gap:10px; margin-top:20px;">
             {% if is_me %}
             <button class="primary-btn" style="width: auto; padding: 10px 30px; margin:0; font-size: 0.9em;"
                 onclick="openEditProfile()">Editar Perfil</button>
-            <button class="primary-btn" style="width: auto; padding: 10px 15px; margin:0; background: #333;"
-                onclick="alert('Settings')"><i class="fas fa-cog"></i></button>
             {% else %}
             <button class="primary-btn" style="width: auto; padding: 10px 40px; margin:0; font-size: 0.9em;"
-                onclick="alert('Follow logic coming soon')">Seguir</button>
+                onclick="alert('Follow logic...')">Seguir</button>
             {% endif %}
         </div>
     </div>
@@ -62,7 +77,7 @@
     <div class="profile-grid">
         {% for video in videos %}
         <div class="grid-item">
-            <video src="{{ video.url }}" onclick="window.location.href='/'"></video>
+            <video src="{{ video.url }}"></video>
             <div
                 style="position:absolute; bottom:5px; left:5px; color:white; font-size:0.8em; text-shadow:1px 1px 2px black;">
                 ♥ {{ video.likes }}
@@ -81,11 +96,12 @@
             <h2>Editar Perfil</h2>
             <div class="input-group">
                 <label style="font-size:0.8em; color:#aaa;">Foto URL</label>
-                <input type="text" id="editPic" value="{{ user.profile_pic }}">
+                <input type="text" id="editPic" value="{{ user.profile_pic }}" placeholder="Deixe vazio para manter">
             </div>
             <div class="input-group">
                 <label style="font-size:0.8em; color:#aaa;">Bio</label>
-                <input type="text" id="editBio" value="{{ user.bio if user.bio else '' }}">
+                <input type="text" id="editBio" value="{{ user.bio if user.bio else '' }}"
+                    placeholder="Deixe vazio para manter">
             </div>
             <button class="primary-btn" onclick="saveProfile()">Salvar</button>
             <button class="primary-btn" style="background:#333; margin-top:10px;"
@@ -98,11 +114,17 @@
             document.getElementById('editProfileModal').style.display = 'flex';
         }
 
+        function toggleSettings() {
+            const m = document.getElementById('settingsMenu');
+            m.style.display = m.style.display === 'none' ? 'block' : 'none';
+        }
+
         async function saveProfile() {
             const bio = document.getElementById('editBio').value;
             const pic = document.getElementById('editPic').value;
 
             const fd = new FormData();
+            // Send fields anyway, backend handles None checks if empty string needs handling
             fd.append('bio', bio);
             fd.append('profile_pic', pic);
 
@@ -114,6 +136,11 @@
                     alert('Erro ao atualizar');
                 }
             } catch (e) { console.error(e); }
+        }
+
+        async function handleLogout() {
+            await fetch('/logout', { method: 'POST' });
+            window.location.href = '/';
         }
     </script>
 </body>

@@ -19,7 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
 # --- CONFIGURAÇÃO INICIAL (V-CLOUD) ---
-app = FastAPI(title="NEO Social Engine V-Cloud", version="15.0.0")
+app = FastAPI(title="NEO Social Engine V-Cloud", version="15.5.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -57,8 +57,10 @@ try:
         
         conn.execute(text("ALTER TABLE comments ADD COLUMN IF NOT EXISTS username TEXT;"))
         conn.execute(text("ALTER TABLE comments ADD COLUMN IF NOT EXISTS timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP;"))
+        
+        conn.execute(text("CREATE TABLE IF NOT EXISTS follows (follower_id TEXT, followed_id TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (follower_id, followed_id));"))
         conn.commit()
-    print("✅ Schema verificado: bio, profile_pic, counts, pioneer, comments.")
+    print("✅ Schema verificado: bio, profile_pic, counts, pioneer, comments, follows.")
 except Exception as e:
     print(f"⚠️ Aviso SQL Startup: {e}")
 
@@ -88,8 +90,7 @@ class Video(Base):
     id = Column(String, primary_key=True)
     title = Column(String)
     url = Column(String)
-    likes = Column(Integer, default=0)
-    filter_type = Column(String, nullable=True)
+    likes = Column(Integer, default=0) # Legacy column, verify with Like table count
     author = Column(String, ForeignKey("users.username"))
     created_at = Column(DateTime, default=datetime.utcnow)
     comments = relationship("Comment", back_populates="video", cascade="all, delete-orphan")
@@ -156,14 +157,20 @@ async def login(response: Response, username: str = Form(...)):
     finally:
         db.close()
 
+@app.post("/logout")
+async def logout(response: Response):
+    response.delete_cookie("neo_session")
+    return {"message": "Logged out"}
+
 @app.get("/api/me")
 async def get_current_user_api(neo_session: Optional[str] = Cookie(None)):
     user_name = get_user_from_session(neo_session)
     if not user_name:
-        return JSONResponse(content={"user": None}, status_code=401)
+        return JSONResponse(content={"user": None}, status_code=200) # Return null user instead of 401 for frontend check
     db = SessionLocal()
     try:
         user = db.query(User).filter(User.username == user_name).first()
+        if not user: return JSONResponse(content={"user": None})
         return {
             "user": user.username, "profile_pic": user.profile_pic,
             "is_pioneer": user.is_pioneer, "bio": user.bio,
@@ -172,50 +179,43 @@ async def get_current_user_api(neo_session: Optional[str] = Cookie(None)):
     finally:
         db.close()
 
-@app.get("/me", response_class=HTMLResponse)
-async def my_profile(request: Request, neo_session: Optional[str] = Cookie(None)):
-    user_name = get_user_from_session(neo_session)
-    if not user_name:
-        # Redirect to home/login if not logged in
-        return RedirectResponse(url="/")
-        
-    db = SessionLocal()
-    try:
-        user = db.query(User).filter(User.username == user_name).first()
-        if not user: return RedirectResponse(url="/")
-        
-        videos = db.query(Video).filter(Video.author == user_name).order_by(Video.created_at.desc()).all()
-        # Likes Received
-        likes_count = db.execute(text("SELECT COUNT(*) FROM likes l JOIN videos v ON l.video_id=v.id WHERE v.author=:u"), {"u":user_name}).scalar()
-
-        return templates.TemplateResponse("profile.html", {
-            "request": request,
-            "user": user,
-            "videos": [{"url": v.url, "likes": v.likes} for v in videos],
-            "likes_count": likes_count or 0,
-            "is_me": True
-        })
-    finally:
-        db.close()
-
-@app.get("/", response_class=HTMLResponse)
-async def read_root(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
-
 @app.get("/feed")
 async def get_feed(type: str = "foryou", neo_session: Optional[str] = Cookie(None)):
     current_user = get_user_from_session(neo_session) or ""
+    
     with engine.connect() as conn:
-        query = text("""
-            SELECT v.id, v.title, v.url, v.author, v.created_at,
-                u.profile_pic as author_pic, u.is_pioneer as author_is_pioneer,
-                (SELECT COUNT(*) FROM likes WHERE video_id = v.id) as total_likes,
-                (SELECT COUNT(*) FROM likes WHERE video_id = v.id AND user_id = :cu) as user_liked,
-                (SELECT COUNT(*) FROM comments WHERE video_id = v.id) as total_comments
-            FROM videos v
-            LEFT JOIN users u ON v.author = u.username
-            ORDER BY v.created_at DESC
-        """)
+        if type == "following" and current_user:
+            # Check if following anyone
+            following_check = conn.execute(text("SELECT COUNT(*) FROM follows WHERE follower_id = :cu"), {"cu": current_user}).scalar()
+            if following_check == 0:
+                print("Returning emtpy feed for no following")
+                # Return empty list to trigger 'Siga pessoas' message on frontend
+                return JSONResponse(content=[]) 
+
+            query = text("""
+                SELECT v.id, v.title, v.url, v.author, v.created_at,
+                    u.profile_pic as author_pic, u.is_pioneer as author_is_pioneer,
+                    (SELECT COUNT(*) FROM likes WHERE video_id = v.id) as total_likes,
+                    (SELECT COUNT(*) FROM likes WHERE video_id = v.id AND user_id = :cu) as user_liked,
+                    (SELECT COUNT(*) FROM comments WHERE video_id = v.id) as total_comments
+                FROM videos v
+                JOIN follows f ON v.author = f.followed_id
+                LEFT JOIN users u ON v.author = u.username
+                WHERE f.follower_id = :cu
+                ORDER BY v.created_at DESC
+            """)
+        else: # For You (All videos)
+            query = text("""
+                SELECT v.id, v.title, v.url, v.author, v.created_at,
+                    u.profile_pic as author_pic, u.is_pioneer as author_is_pioneer,
+                    (SELECT COUNT(*) FROM likes WHERE video_id = v.id) as total_likes,
+                    (SELECT COUNT(*) FROM likes WHERE video_id = v.id AND user_id = :cu) as user_liked,
+                    (SELECT COUNT(*) FROM comments WHERE video_id = v.id) as total_comments
+                FROM videos v
+                LEFT JOIN users u ON v.author = u.username
+                ORDER BY v.created_at DESC
+            """)
+        
         rows = conn.execute(query, {"cu": current_user}).mappings().all()
 
     videos = [{
@@ -224,67 +224,101 @@ async def get_feed(type: str = "foryou", neo_session: Optional[str] = Cookie(Non
         "user_has_liked": r["user_liked"] > 0, "author": r["author"],
         "author_pic": r["author_pic"], "author_is_pioneer": r["author_is_pioneer"]
     } for r in rows]
+    
     return JSONResponse(content=videos)
 
-# Nova Rota: Perfil Público
-@app.get("/api/user/{username}")
-async def get_public_profile_api(username: str):
+# --- PROFILE ROUTES (HTML + API) ---
+
+def get_profile_data(db, username, current_user_name):
+    # Helper to get complete profile data + video stats
+    user = db.query(User).filter(User.username == username).first()
+    if not user: return None
+    
+    videos = db.query(Video).filter(Video.author == username).order_by(Video.created_at.desc()).all()
+    
+    # Calculate real likes count for each video
+    video_list = []
+    total_received_likes = 0
+    for v in videos:
+        likes_cnt = db.query(Like).filter(Like.video_id == v.id).count()
+        total_received_likes += likes_cnt
+        video_list.append({"id": v.id, "url": v.url, "likes": likes_cnt})
+        
+    return {
+        "user": user,
+        "videos": video_list,
+        "likes_count": total_received_likes,
+        "is_me": (username == current_user_name)
+    }
+
+@app.get("/me", response_class=HTMLResponse)
+async def my_profile(request: Request, neo_session: Optional[str] = Cookie(None)):
+    user_name = get_user_from_session(neo_session)
+    if not user_name: return RedirectResponse(url="/")
+        
     db = SessionLocal()
     try:
-        user = db.query(User).filter(User.username == username).first()
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
+        data = get_profile_data(db, user_name, user_name)
+        if not data: return RedirectResponse(url="/")
         
-        videos = db.query(Video).filter(Video.author == username).order_by(Video.created_at.desc()).all()
-        likes_recv = db.execute(text("SELECT COUNT(*) FROM likes l JOIN videos v ON l.video_id=v.id WHERE v.author=:u"), {"u":username}).scalar()
-
-        return {
-            "username": user.username,
-            "profile_pic": user.profile_pic,
-            "bio": user.bio or "Sem descrição.",
-            "is_pioneer": user.is_pioneer,
-            "stats": {
-                "videos": len(videos),
-                "likes": likes_recv or 0,
-                "followers": user.followers_count or 0,
-                "following": user.following_count or 0
-            },
-            "videos": [{"id": v.id, "url": v.url} for v in videos]
-        }
+        return templates.TemplateResponse("profile.html", {
+            "request": request,
+            "user": data["user"],
+            "videos": data["videos"],
+            "likes_count": data["likes_count"],
+            "is_me": True
+        })
     finally:
         db.close()
 
 @app.get("/user/{username}", response_class=HTMLResponse)
 async def get_public_profile_page(request: Request, username: str, neo_session: Optional[str] = Cookie(None)):
     current_user_name = get_user_from_session(neo_session)
-    # If viewing own profile, redirect to /me
-    if current_user_name == username:
-        return RedirectResponse(url="/me")
+    if current_user_name == username: return RedirectResponse(url="/me")
 
     db = SessionLocal()
     try:
-        user = db.query(User).filter(User.username == username).first()
-        if not user:
-            return templates.TemplateResponse("index.html", {"request": request}) # Fallback to feed if not found
+        data = get_profile_data(db, username, current_user_name)
+        if not data: return templates.TemplateResponse("index.html", {"request": request}) # Fallback
         
-        videos = db.query(Video).filter(Video.author == username).order_by(Video.created_at.desc()).all()
-        likes_count = db.execute(text("SELECT COUNT(*) FROM likes l JOIN videos v ON l.video_id=v.id WHERE v.author=:u"), {"u":username}).scalar()
-
         return templates.TemplateResponse("profile.html", {
             "request": request,
-            "user": user,
-            "videos": [{"url": v.url, "likes": v.likes} for v in videos],
-            "likes_count": likes_count or 0,
+            "user": data["user"],
+            "videos": data["videos"],
+            "likes_count": data["likes_count"],
             "is_me": False
         })
     finally:
         db.close()
 
-# Rota de Edição
+@app.get("/api/user/{username}")
+async def get_public_profile_api(username: str):
+    # API Endpoint for AJAX lookups if needed
+    db = SessionLocal()
+    try:
+        data = get_profile_data(db, username, "")
+        if not data: raise HTTPException(404)
+        return {
+            "username": data["user"].username,
+            "profile_pic": data["user"].profile_pic,
+            "bio": data["user"].bio,
+            "is_pioneer": data["user"].is_pioneer,
+            "stats": {
+                "videos": len(data["videos"]),
+                "likes": data["likes_count"],
+                "followers": data["user"].followers_count,
+                "following": data["user"].following_count
+            },
+            "videos": data["videos"]
+        }
+    finally:
+        db.close()
+
+
 @app.post("/update_profile")
 async def update_profile(
-    bio: str = Form(...),
-    profile_pic: str = Form(...),
+    bio: Optional[str] = Form(None),
+    profile_pic: Optional[str] = Form(None),
     neo_session: Optional[str] = Cookie(None)
 ):
     user_name = get_user_from_session(neo_session)
@@ -294,12 +328,19 @@ async def update_profile(
     try:
         user = db.query(User).filter(User.username == user_name).first()
         if user:
-            user.bio = bio
-            user.profile_pic = profile_pic
+            # Flexible Update Logic
+            if bio is not None:
+                user.bio = bio
+            if profile_pic is not None and len(profile_pic.strip()) > 0:
+                user.profile_pic = profile_pic
             db.commit()
             return {"message": "Updated"}
     finally:
         db.close()
+
+@app.get("/", response_class=HTMLResponse)
+async def read_root(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request})
 
 # Upload / Comments / Like
 @app.post("/upload")
@@ -321,6 +362,12 @@ async def comment_video(video_id: str, text: str = Form(...), neo_session: Optio
     user = get_user_from_session(neo_session)
     if not user: raise HTTPException(status_code=401)
     db = SessionLocal()
+    # Ensure video exists
+    vid = db.query(Video).filter(Video.id == video_id).first()
+    if not vid:
+        db.close()
+        raise HTTPException(404, "Video not found")
+        
     db.add(Comment(text=text, username=user, video_id=video_id))
     db.commit()
     db.close()
