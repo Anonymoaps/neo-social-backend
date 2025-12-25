@@ -71,22 +71,22 @@
 
             <!-- ABAS -->
             <div style="display:flex; justify-content:center; gap:20px; margin-bottom:20px;">
-                <button onclick="showLogin()" id="tabLogin"
+                <button onclick="toggleAuthMode('login')" id="tabLogin"
                     style="background:none; border:none; color:white; font-weight:bold; cursor:pointer; border-bottom: 2px solid var(--primary);">Entrar</button>
-                <button onclick="showSignup()" id="tabSignup"
+                <button onclick="toggleAuthMode('signup')" id="tabSignup"
                     style="background:none; border:none; color:#555; font-weight:bold; cursor:pointer;">Criar
                     Conta</button>
             </div>
 
-            <!-- LOGIN -->
-            <div id="viewLogin">
+            <!-- LOGIN BOX -->
+            <div id="login-box">
                 <h1>Bem-vindo</h1>
-                <form action="/login" method="post">
+                <form onsubmit="event.preventDefault(); doLogin();">
                     <div class="input-group">
-                        <input type="email" name="email" placeholder="Seu Email" required>
+                        <input type="email" id="loginUserField" name="email" placeholder="Seu Email" required>
                     </div>
                     <div class="input-group">
-                        <input type="password" name="password" placeholder="Senha" required>
+                        <input type="password" id="loginPassField" name="password" placeholder="Senha" required>
                     </div>
                     <div id="loginError" style="color: #ff2e63; font-size: 0.9em; margin-bottom: 10px; display: none;">
                         Credenciais inválidas
@@ -95,8 +95,8 @@
                 </form>
             </div>
 
-            <!-- SIGNUP WIZARD -->
-            <div id="viewSignup" style="display:none;">
+            <!-- SIGNUP BOX (WIZARD) -->
+            <div id="signup-box" style="display:none;">
 
                 <!-- STEP 1: CREDENCIAIS -->
                 <div id="step1">
@@ -166,12 +166,102 @@
             } catch (e) { }
         }
 
+        /* AUTH & WIZARD LOGIC */
+        function toggleAuthMode(mode) {
+            const loginBox = document.getElementById('login-box');
+            const signupBox = document.getElementById('signup-box');
+            const tabLogin = document.getElementById('tabLogin');
+            const tabSignup = document.getElementById('tabSignup');
+
+            if (mode === 'login') {
+                loginBox.style.display = 'block';
+                signupBox.style.display = 'none';
+                tabLogin.style.borderBottom = '2px solid var(--primary)';
+                tabLogin.style.color = 'white';
+                tabSignup.style.borderBottom = 'none';
+                tabSignup.style.color = '#555';
+            } else {
+                loginBox.style.display = 'none';
+                signupBox.style.display = 'block';
+                tabLogin.style.borderBottom = 'none';
+                tabLogin.style.color = '#555';
+                tabSignup.style.borderBottom = '2px solid var(--primary)';
+                tabSignup.style.color = 'white';
+            }
+        }
+
         async function doLogin() {
-            const u = document.getElementById('loginUser').value;
-            if (!u) return;
-            const fd = new FormData(); fd.append('username', u);
-            const res = await fetch('/login', { method: 'POST', body: fd });
-            if (res.ok) window.location.reload();
+            const email = document.getElementById('loginUserField').value;
+            const pass = document.getElementById('loginPassField').value;
+            if (!email || !pass) return;
+
+            const fd = new FormData();
+            fd.append('email', email);
+            fd.append('password', pass);
+
+            try {
+                const res = await fetch('/login', { method: 'POST', body: fd, redirect: 'follow' });
+                if (res.redirected) {
+                    if (res.url.includes('error')) {
+                        document.getElementById('loginError').style.display = 'block';
+                    } else {
+                        window.location.href = res.url;
+                    }
+                } else if (res.ok) {
+                    window.location.reload();
+                }
+            } catch (e) { console.error(e); }
+        }
+
+        async function doRegister() {
+            // Step 1 -> Server -> Step 2
+            const email = document.getElementById('regEmail').value;
+            const pass = document.getElementById('regPass').value;
+            if (!email || !pass) return alert("Preencha tudo");
+
+            const fd = new FormData(); fd.append('email', email); fd.append('password', pass);
+            const res = await fetch('/auth/register', { method: 'POST', body: fd });
+            const data = await res.json();
+
+            if (data.status === 'success') {
+                document.getElementById('step1').style.display = 'none';
+                document.getElementById('step2').style.display = 'block';
+            } else {
+                alert("Erro: " + data.message);
+            }
+        }
+
+        async function doVerify() {
+            // Step 2 -> Server -> Step 3
+            const email = document.getElementById('regEmail').value;
+            const code = document.getElementById('regCode').value;
+
+            const fd = new FormData(); fd.append('email', email); fd.append('code', code);
+            const res = await fetch('/auth/verify', { method: 'POST', body: fd });
+            const data = await res.json();
+
+            if (data.status === 'success') {
+                document.getElementById('step2').style.display = 'none';
+                document.getElementById('step3').style.display = 'block';
+            } else {
+                alert("Código inválido");
+            }
+        }
+
+        async function doSetUser() {
+            // Step 3 -> Server -> Login
+            const email = document.getElementById('regEmail').value;
+            const user = document.getElementById('regUser').value;
+
+            const fd = new FormData(); fd.append('email', email); fd.append('username', user);
+            const res = await fetch('/auth/set-username', { method: 'POST', body: fd });
+            const data = await res.json();
+
+            if (data.status === 'success') {
+                window.location.reload();
+            } else {
+                alert("Erro: " + data.message);
+            }
         }
 
         /* FEED LOGIC */
