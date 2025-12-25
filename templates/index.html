@@ -780,12 +780,35 @@
                             <span style="font-size:0.8em; margin-top:5px; display:block;">${v.comments}</span>
                         </div>
                         <div class="action-icon btn-magic" onclick="openEffects('${v.id}')"><i class="fas fa-magic"></i></div>
-                        <div class="action-icon"><i class="fas fa-share"></i></div>
+                        <div class="action-icon" onclick="shareVideo('${v.url}')">
+                            <i class="fas fa-share"></i>
+                        </div>
                     </div>
                 `;
                 container.appendChild(div);
                 div.querySelector('video').play().catch(() => { });
             });
+        }
+
+        // --- SHARE LOGIC ---
+        async function shareVideo(videoUrl) {
+            // Se a URL for relativa, transforma em absoluta
+            const fullUrl = videoUrl.startsWith('http') ? videoUrl : window.location.origin + videoUrl;
+
+            if (navigator.share) {
+                try {
+                    await navigator.share({
+                        title: 'NEO App',
+                        text: 'Olha esse vídeo no NEO! 🚀',
+                        url: fullUrl
+                    });
+                } catch (err) { console.log(err); }
+            } else {
+                try {
+                    await navigator.clipboard.writeText(fullUrl);
+                    alert("Link copiado! 📋");
+                } catch (e) { alert("Erro ao copiar."); }
+            }
         }
 
         // --- UX ACTIONS ---
