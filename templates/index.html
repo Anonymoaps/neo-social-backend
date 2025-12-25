@@ -66,10 +66,15 @@
     </div>
 
     <div id="loginModal" class="modal-overlay" style="display: flex;">
-        <div class="modal-box">
+        <div class="modal-box"
+            style="z-index: 9999999 !important; position: relative; pointer-events: auto !important;">
             <h1>NEO</h1>
-            <div class="input-group"><input type="text" id="loginUser" placeholder="Username"></div>
-            <button class="primary-btn" onclick="doLogin()">Enter</button>
+            <form action="/login" method="post">
+                <div class="input-group">
+                    <input type="text" name="username" id="loginUser" placeholder="Username" required>
+                </div>
+                <button type="submit" class="primary-btn">Entrar</button>
+            </form>
             <button class="primary-btn" style="background:#333; margin-top:10px;"
                 onclick="document.getElementById('loginModal').style.display='none'">Fechar</button>
         </div>
@@ -239,7 +244,7 @@
             if (!txt) return;
             const fd = new FormData(); fd.append('text', txt);
             await fetch(`/video/${currentVideoId}/comment`, { method: 'POST', body: fd });
-            window.location.reload(); # Force reload as requested
+            window.location.reload(); // Force reload as requested
         }
 
         /* UPLOAD */

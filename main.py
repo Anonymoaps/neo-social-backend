@@ -153,7 +153,8 @@ async def login(response: Response, username: str = Form(...)):
         session_token = str(uuid.uuid4())
         active_sessions[session_token] = username
         response.set_cookie(key="neo_session", value=session_token, httponly=True, samesite='lax', max_age=3600*24*7)
-        return {"message": "Logged in", "user": username}
+        response.set_cookie(key="neo_session", value=session_token, httponly=True, samesite='lax', max_age=3600*24*7)
+        return RedirectResponse(url="/", status_code=303) # Native Form Redirect
     finally:
         db.close()
 
