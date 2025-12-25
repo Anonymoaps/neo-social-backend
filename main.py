@@ -8,7 +8,7 @@ from datetime import datetime
 # --- CLOUDINARY & DB IMPORTS ---
 import cloudinary
 import cloudinary.uploader
-from sqlalchemy import create_engine, text, Column, Integer, String, DateTime, ForeignKey, Boolean
+from sqlalchemy import create_engine, text, Column, Integer, String, DateTime, ForeignKey, Boolean, inspect
 from sqlalchemy.orm import sessionmaker, declarative_base, relationship
 
 from fastapi import FastAPI, UploadFile, File, Form, Request, HTTPException, Response, Cookie, Depends
@@ -114,28 +114,47 @@ Base.metadata.create_all(bind=engine)
 
 def update_db_schema():
     try:
+        inspector = inspect(engine)
+        # Verify if tables exist first
+        if not inspector.has_table("users"): return
+
         with engine.connect() as conn:
-            # New Auth Columns
-            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT;"))
-            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS password TEXT;"))
-            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_code TEXT;"))
-            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT FALSE;"))
+            columns = [c["name"] for c in inspector.get_columns("users")]
             
-            # Existing columns
-            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_pioneer BOOLEAN DEFAULT FALSE;"))
-            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT;"))
-            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_pic TEXT;"))
-            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS followers_count INTEGER DEFAULT 0;"))
-            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS following_count INTEGER DEFAULT 0;"))
+            # Auth Columns
+            if "email" not in columns:
+                conn.execute(text("ALTER TABLE users ADD COLUMN email TEXT"))
+            if "password" not in columns:
+                conn.execute(text("ALTER TABLE users ADD COLUMN password TEXT"))
+            if "verification_code" not in columns:
+                conn.execute(text("ALTER TABLE users ADD COLUMN verification_code TEXT"))
+            if "is_verified" not in columns:
+                conn.execute(text("ALTER TABLE users ADD COLUMN is_verified BOOLEAN DEFAULT FALSE"))
             
-            conn.execute(text("ALTER TABLE comments ADD COLUMN IF NOT EXISTS username TEXT;"))
-            conn.execute(text("ALTER TABLE comments ADD COLUMN IF NOT EXISTS timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP;"))
+            # Existing columns checks
+            if "is_pioneer" not in columns:
+                conn.execute(text("ALTER TABLE users ADD COLUMN is_pioneer BOOLEAN DEFAULT FALSE"))
+            if "bio" not in columns:
+                conn.execute(text("ALTER TABLE users ADD COLUMN bio TEXT"))
+            if "profile_pic" not in columns:
+                conn.execute(text("ALTER TABLE users ADD COLUMN profile_pic TEXT"))
+            if "followers_count" not in columns:
+                conn.execute(text("ALTER TABLE users ADD COLUMN followers_count INTEGER DEFAULT 0"))
+            if "following_count" not in columns:
+                conn.execute(text("ALTER TABLE users ADD COLUMN following_count INTEGER DEFAULT 0"))
             
-            conn.execute(text("CREATE TABLE IF NOT EXISTS follows (follower_id TEXT, followed_id TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (follower_id, followed_id));"))
+            # Comments table check
+            if inspector.has_table("comments"):
+                c_cols = [c["name"] for c in inspector.get_columns("comments")]
+                if "username" not in c_cols:
+                    conn.execute(text("ALTER TABLE comments ADD COLUMN username TEXT"))
+                if "timestamp" not in c_cols:
+                    conn.execute(text("ALTER TABLE comments ADD COLUMN timestamp TIMESTAMP"))
+
             conn.commit()
-        print("✅ Schema verificado: Auth + Core.")
+        print("Schema verificado: Auth + Core.")
     except Exception as e:
-        print(f"⚠️ Aviso SQL Schema Update: {e}")
+        print(f"Aviso SQL Schema Update: {e}")
 
 update_db_schema()
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -189,6 +208,10 @@ async def auth_register(email: str = Form(...), password: str = Form(...)):
         
         db.commit()
         return {"status": "success", "message": "Código enviado", "email": email}
+    except Exception as e:
+        db.rollback()
+        print(f"ERRO CRÍTICO NO REGISTRO: {e}")
+        return JSONResponse(status_code=500, content={"detail": str(e)})
     finally:
         db.close()
 

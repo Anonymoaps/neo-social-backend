@@ -233,6 +233,18 @@
             try {
                 const fd = new FormData(); fd.append('email', email); fd.append('password', pass);
                 const res = await fetch('/auth/register', { method: 'POST', body: fd });
+
+                if (!res.ok) {
+                    const errorText = await res.text();
+                    try {
+                        const errorJson = JSON.parse(errorText);
+                        alert("Erro no servidor: " + (errorJson.detail || errorJson.message));
+                    } catch (e) {
+                        alert("Erro Crítico no Servidor: " + errorText);
+                    }
+                    return;
+                }
+
                 const data = await res.json();
 
                 if (data.status === 'success') {
