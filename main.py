@@ -48,6 +48,16 @@ else:
     DATABASE_URL = "sqlite:///neo.db"
     engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 
+# --- SUPER BLINDAGEM DE BANCO ---
+# Garante que a coluna existe antes de QUALQUER coisa
+try:
+    with engine.connect() as conn:
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_pioneer BOOLEAN DEFAULT FALSE;"))
+        conn.commit()
+    print("✅ Coluna 'is_pioneer' verificada/criada com sucesso.")
+except Exception as e:
+    print(f"⚠️ Aviso de verificação de tabela (pode ser SQLite ou erro de permissão): {e}")
+
 # --- CLOUDINARY SETUP ---
 # Não remover nem alterar credenciais conforme solicitado
 cloudinary.config( 
@@ -102,32 +112,8 @@ class Follow(Base):
     followed_id = Column(String, ForeignKey("users.username"), primary_key=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-# Init ORM & Safe Migration
-# Create tables if they don't exist
+# Init ORM
 Base.metadata.create_all(bind=engine)
-
-# Smart Migration / Stabilization
-# Verifica se a tabela users tem a coluna is_pioneer, se não, adiciona via SQL puro para não quebrar o banco existente
-def smart_migrate_users():
-    with engine.connect() as conn:
-        try:
-            # Tenta selecionar a coluna. Se falhar, ela não existe.
-            conn.execute(text("SELECT is_pioneer FROM users LIMIT 1"))
-        except Exception:
-            print("⚠️ Coluna 'is_pioneer' não encontrada. Adicionando...")
-            # Detectar dialeto para sintaxe correta (SQLite vs Postgres)
-            dialect = engine.dialect.name
-            if dialect == 'sqlite':
-                conn.execute(text("ALTER TABLE users ADD COLUMN is_pioneer BOOLEAN DEFAULT 0"))
-            else:
-                conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_pioneer BOOLEAN DEFAULT FALSE"))
-            conn.commit()
-            print("✅ Coluna 'is_pioneer' adicionada com sucesso.")
-
-try:
-    smart_migrate_users()
-except Exception as e:
-    print(f"Migration warning: {e}")
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
@@ -198,7 +184,7 @@ async def get_current_user(neo_session: Optional[str] = Cookie(None)):
             return {
                 "user": user.username, 
                 "profile_pic": user.profile_pic,
-                "is_pioneer": user.is_pioneer
+                "is_pioneer": user.is_pioneer # Agora seguro pois a coluna existe
             }
         return {"user": user_name, "profile_pic": None}
     finally:
@@ -211,6 +197,8 @@ async def read_root(request: Request):
 @app.get("/feed")
 async def get_feed(type: str = "foryou", neo_session: Optional[str] = Cookie(None)):
     current_user = get_user_from_session(neo_session)
+    # Garante que None seja tratado explicitamente, embora SQL 'user_id = NULL' já retorne 0
+    user_param = current_user if current_user else "" 
     
     with engine.connect() as conn:
         # Simplifiquei a query para garantir compatibilidade
@@ -225,7 +213,8 @@ async def get_feed(type: str = "foryou", neo_session: Optional[str] = Cookie(Non
             LEFT JOIN users u ON v.author = u.username
             ORDER BY v.created_at DESC
         """)
-        result = conn.execute(query, {"cu": current_user})
+        # Passa parâmetro seguro
+        result = conn.execute(query, {"cu": user_param})
         rows = result.mappings().all()
 
     videos = []
