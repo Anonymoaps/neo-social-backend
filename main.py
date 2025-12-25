@@ -52,12 +52,13 @@ else:
 try:
     with engine.connect() as conn:
         conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_pioneer BOOLEAN DEFAULT FALSE;"))
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT;"))
         conn.execute(text("ALTER TABLE comments ADD COLUMN IF NOT EXISTS username TEXT;"))
         conn.execute(text("ALTER TABLE comments ADD COLUMN IF NOT EXISTS timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP;"))
         conn.commit()
-    print("✅ Colunas 'is_pioneer', 'username', 'timestamp' verificadas/criadas com sucesso.")
+    print("✅ Colunas 'is_pioneer', 'bio', 'username', 'timestamp' verificadas/criadas com sucesso.")
 except Exception as e:
-    print(f"⚠️ Aviso de verificação de tabela (pode ser SQLite ou erro de permissão): {e}")
+    print(f"⚠️ Aviso de verificação de tabela: {e}")
 
 # --- CLOUDINARY SETUP ---
 cloudinary.config( 
@@ -75,6 +76,7 @@ class User(Base):
     username = Column(String, primary_key=True)
     created_at = Column(String)
     profile_pic = Column(String)
+    bio = Column(String, nullable=True)
     is_pioneer = Column(Boolean, default=False) 
 
 class Video(Base):
@@ -144,7 +146,7 @@ async def login(response: Response, username: str = Form(...)):
             new_user = User(
                 username=username, 
                 created_at=str(datetime.now()), 
-                profile_pic=None,
+                profile_pic=f"https://ui-avatars.com/api/?name={username}&background=random", # Placeholder automático
                 is_pioneer=is_pioneer
             )
             db.add(new_user)
@@ -182,7 +184,8 @@ async def get_current_user(neo_session: Optional[str] = Cookie(None)):
             return {
                 "user": user.username, 
                 "profile_pic": user.profile_pic,
-                "is_pioneer": user.is_pioneer
+                "is_pioneer": user.is_pioneer,
+                "bio": user.bio
             }
         return {"user": user_name, "profile_pic": None}
     finally:
@@ -234,6 +237,39 @@ async def get_feed(type: str = "foryou", neo_session: Optional[str] = Cookie(Non
     db.close()
 
     return JSONResponse(content=videos)
+
+@app.get("/profile/{username}")
+async def get_profile(username: str):
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.username == username).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Get Stats
+        videos_count = db.query(Video).filter(Video.author == username).count()
+        # Likes received
+        likes_recv = db.execute(text("SELECT COUNT(*) FROM likes l JOIN videos v ON l.video_id = v.id WHERE v.author = :u"), {"u": username}).scalar()
+
+        # Get Videos
+        videos = db.query(Video).filter(Video.author == username).order_by(Video.created_at.desc()).all()
+        video_list = [{"id": v.id, "url": v.url, "title": v.title} for v in videos]
+
+        return {
+            "username": user.username,
+            "profile_pic": user.profile_pic,
+            "bio": user.bio or "Sem bio ainda.",
+            "is_pioneer": user.is_pioneer,
+            "stats": {
+                "videos": videos_count,
+                "likes": likes_recv,
+                "followers": 0 # Placeholder
+            },
+            "videos": video_list
+        }
+    finally:
+        db.close()
+
 
 @app.post("/upload")
 async def upload_video(
