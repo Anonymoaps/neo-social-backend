@@ -156,8 +156,8 @@ async def login(response: Response, username: str = Form(...)):
     finally:
         db.close()
 
-@app.get("/me")
-async def get_current_user(neo_session: Optional[str] = Cookie(None)):
+@app.get("/api/me")
+async def get_current_user_api(neo_session: Optional[str] = Cookie(None)):
     user_name = get_user_from_session(neo_session)
     if not user_name:
         return JSONResponse(content={"user": None}, status_code=401)
@@ -169,6 +169,31 @@ async def get_current_user(neo_session: Optional[str] = Cookie(None)):
             "is_pioneer": user.is_pioneer, "bio": user.bio,
             "followers": user.followers_count, "following": user.following_count
         }
+    finally:
+        db.close()
+
+@app.get("/me", response_class=HTMLResponse)
+async def get_my_profile_page(request: Request, neo_session: Optional[str] = Cookie(None)):
+    user_name = get_user_from_session(neo_session)
+    if not user_name:
+        return RedirectResponse(url="/")
+        
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.username == user_name).first()
+        if not user: return RedirectResponse(url="/")
+        
+        # Get Videos
+        videos = db.query(Video).filter(Video.author == user_name).order_by(Video.created_at.desc()).all()
+        # Likes Received
+        likes_count = db.execute(text("SELECT COUNT(*) FROM likes l JOIN videos v ON l.video_id=v.id WHERE v.author=:u"), {"u":user_name}).scalar()
+
+        return templates.TemplateResponse("profile.html", {
+            "request": request,
+            "user": user,
+            "videos": [{"url": v.url, "likes": v.likes} for v in videos],
+            "likes_count": likes_count or 0
+        })
     finally:
         db.close()
 

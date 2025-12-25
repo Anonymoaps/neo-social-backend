@@ -21,8 +21,8 @@
         </div>
         <div style="display:flex; gap:10px;">
             <!-- My Profile Button -->
-            <div class="nav-item" onclick="openMyProfile()"><i class="fas fa-user-circle" style="font-size:1.5em;"></i>
-            </div>
+            <a href="/me" class="nav-item" style="color: inherit; text-decoration: none;"><i class="fas fa-user-circle"
+                    style="font-size:1.5em;"></i></a>
             <button class="btn-upload" onclick="openUpload()">+ Upload</button>
         </div>
     </div>
@@ -128,7 +128,7 @@
 
         async function init() {
             try {
-                const res = await fetch('/me', { credentials: 'include' });
+                const res = await fetch('/api/me', { credentials: 'include' });
                 if (res.ok) {
                     const data = await res.json();
                     if (data.user) {
