@@ -1,0 +1,37 @@
+📘 MANUAL DE OPERAÇÕES DO CEO (NEO APP)
+1. 🔗 Links Vitais (Salve nos Favoritos)
+Seu Site (App): https://neo-social-app.onrender.com
+
+Painel do Servidor (Render): https://dashboard.render.com
+
+Painel de Arquivos (Cloudinary): https://cloudinary.com/console/media_library
+
+Código Fonte (GitHub): https://github.com/Anonymoaps/neo-social-backend
+
+2. 🛠️ Como Atualizar o Site
+Sempre que você mudar uma linha de código no VS Code, o site não muda sozinho. Você precisa enviar a atualização. No Terminal do VS Code, rode sempre a "Tríade Sagrada":
+
+Bash
+
+git add .
+git commit -m "Escreva aqui o que você mudou"
+git push
+Depois de dar git push, espere 2 a 3 minutos e o Render atualiza sozinho.
+
+3. 🚨 Emergência (Apagar tudo e Recomeçar)
+Se o site travar ou você quiser limpar o cache:
+
+Vá no Render Dashboard.
+
+Botão "Manual Deploy".
+
+Escolha "Clear build cache & deploy".
+
+4. 🕵️‍♂️ Moderação (Como apagar vídeos proibidos)
+Se um usuário postar algo errado e o botão de delete do site falhar:
+
+Entre no Cloudinary.
+
+Vá na pasta neo_videos.
+
+Apague o vídeo manualmente. (O vídeo some, mas o link quebrado pode ficar no site até você limpar o banco, mas pelo menos o conteúdo sai do ar).

@@ -1,0 +1,60 @@
+
+# --- CLOUDINARY SETUP ---
+cloudinary.config( 
+  cloud_name = os.getenv("CLOUD_NAME", ""), 
+  api_key = os.getenv("CLOUD_API_KEY", ""), 
+  api_secret = os.getenv("CLOUD_API_SECRET", ""),
+  secure = True
+)
+
+# --- DATABASE & ORM SETUP ---
+from sqlalchemy.orm import sessionmaker, declarative_base, relationship
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Boolean
+
+Base = declarative_base()
+
+class Video(Base):
+    __tablename__ = "videos"
+    id = Column(String, primary_key=True)
+    title = Column(String)
+    url = Column(String)
+    likes = Column(Integer, default=0)
+    filter_type = Column(String, nullable=True)
+    author = Column(String, ForeignKey("users.username"))
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    comments = relationship("Comment", back_populates="video", cascade="all, delete-orphan")
+
+class Comment(Base):
+    __tablename__ = "comments"
+    id = Column(Integer, primary_key=True, autoincrement=True) # Changed to Integer PK per request
+    text = Column(String)
+    username = Column(String, ForeignKey("users.username"))
+    timestamp = Column(DateTime, default=datetime.utcnow)
+    video_id = Column(String, ForeignKey("videos.id")) # Video ID is String (UUID)
+    
+    video = relationship("Video", back_populates="comments")
+
+class User(Base):
+    __tablename__ = "users"
+    username = Column(String, primary_key=True)
+    created_at = Column(String)
+    profile_pic = Column(String)
+
+# Init ORM
+Base.metadata.create_all(bind=engine)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+# --- SESSIONS (Cookie) ---
+active_sessions = {}
+
+def get_user_from_session(token):
+    return active_sessions.get(token)

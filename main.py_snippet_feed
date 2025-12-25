@@ -1,0 +1,30 @@
+    videos = []
+    is_admin = (current_user == "@admin")
+    
+    # Pre-fetch comments logic (Optimized)
+    # For MVP, we will query comments for each video. In production, use JOIN or Eager Load.
+    db = SessionLocal()
+    
+    for row in rows:
+        # Fetch Top 5 Comments for this video
+        c_objs = db.query(Comment).filter(Comment.video_id == row["id"]).order_by(Comment.timestamp.desc()).limit(5).all()
+        start_comments = []
+        for c in c_objs:
+            start_comments.append({"text": c.text, "username": c.username})
+
+        videos.append({
+            "id": row["id"],
+            "title": row["title"],
+            "url": row["url"],
+            "likes": row["total_likes"],
+            "comments_count": row["total_comments"],
+            "comments": start_comments, # List for the loop
+            "user_has_liked": row["user_liked"] > 0 if row["user_liked"] else False, 
+            "filter_type": row["filter_type"],
+            "author": row["author"],
+            "author_pic": row["author_pic"],
+            "is_following": row["is_following"] > 0 if row["is_following"] else False,
+            "is_own_video": (row["author"] == current_user) if current_user else False,
+            "can_delete": (row["author"] == current_user) or is_admin if current_user else False
+        })
+    db.close()

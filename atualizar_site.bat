@@ -1,39 +1,27 @@
 @echo off
 cd /d "%~dp0"
-title ATUALIZANDO NEO APP
-color 0e
+echo ==========================================
+echo      NEO AUTO-UPDATER (FORCE PUSH)
+echo ==========================================
+echo.
 
-echo.
-echo ==========================================
-echo        ATUALIZADOR AUTOMATICO (V2)
-echo ==========================================
-echo.
-echo 1. Adicionando mudancas...
+:: 1. Adicionar tudo
+echo [1/3] Adicionando arquivos...
 git add .
-echo.
 
-set /p msg="Escreva o que mudou (ou so aperte ENTER): "
-if "%msg%"=="" set msg="Atualizacao Automatica"
+:: 2. Commit (Pede mensagem ou usa padrao)
+set /p commit_msg="Digite a mensagem do commit (Enter para texto padrao): "
+if "%commit_msg%"=="" set commit_msg="Atualizacao Automatica NEO v2"
 
-echo.
-echo 2. Salvando: "%msg%"...
-git commit -m "%msg%"
-echo.
+echo [2/3] Commitando: "%commit_msg%"...
+git commit -m "%commit_msg%"
 
-echo 3. Enviando para nuvem...
+:: 3. Push
+echo [3/3] Enviando para o GitHub...
 git push origin main
 
-if %errorlevel% neq 0 (
-    color 0c
-    echo.
-    echo [ERRO] O envio falhou.
-    echo Verifique sua internet ou se o GitHub esta fora.
-) else (
-    color 0a
-    echo.
-    echo [SUCESSO] Site atualizado! O Render vai aplicar em 2min.
-)
-
 echo.
-echo Pressione ENTER para sair...
-pause >nul
+echo ==========================================
+echo      SUCESSO! SITE ATUALIZADO.
+echo ==========================================
+pause

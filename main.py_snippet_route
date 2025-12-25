@@ -1,0 +1,30 @@
+from fastapi.responses import RedirectResponse
+
+@app.post("/video/{video_id}/comment")
+async def comment_video(
+    video_id: str, 
+    text: str = Form(...), 
+    neo_session: Optional[str] = Cookie(None)
+):
+    user = get_user_from_session(neo_session)
+    if not user:
+        # Se não tiver cookie, usa "Anônimo" ou redireciona pro login? Request diz: "Se não tiver cookie, redirecionar para login ou usar 'Anônimo'."
+        # Vou usar 'Anônimo' para simplificar o feed flow.
+        user = "Anônimo"
+        
+    db = SessionLocal()
+    try:
+        new_comment = Comment(
+            text=text,
+            username=user,
+            video_id=video_id
+        )
+        db.add(new_comment)
+        db.commit()
+    except Exception as e:
+        print(f"Error saving comment: {e}")
+    finally:
+        db.close()
+        
+    # Redirecionar para a home
+    return RedirectResponse(url="/", status_code=303)

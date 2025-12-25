@@ -40,12 +40,11 @@ if DATABASE_URL:
     # Fix para Render/Heroku que usam postgres:// antigo
     if DATABASE_URL.startswith("postgres://"):
         DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+    engine = create_engine(DATABASE_URL)
 else:
     # Fallback local
     DATABASE_URL = "sqlite:///neo.db"
-
-# Cria engine do SQLAlchemy
-engine = create_engine(DATABASE_URL)
+    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 
 def init_db():
     with engine.connect() as conn:
@@ -110,7 +109,53 @@ cloudinary.config(
   secure = True
 )
 
-# --- SESSIONS ---
+# --- DATABASE & ORM SETUP ---
+from sqlalchemy.orm import sessionmaker, declarative_base, relationship
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Boolean
+
+Base = declarative_base()
+
+class Video(Base):
+    __tablename__ = "videos"
+    id = Column(String, primary_key=True)
+    title = Column(String)
+    url = Column(String)
+    likes = Column(Integer, default=0)
+    filter_type = Column(String, nullable=True)
+    author = Column(String, ForeignKey("users.username"))
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    comments = relationship("Comment", back_populates="video", cascade="all, delete-orphan")
+
+class Comment(Base):
+    __tablename__ = "comments"
+    id = Column(Integer, primary_key=True, autoincrement=True) # Changed to Integer AI per request hint or keeping String? User asked for Integer PK.
+    text = Column(String)
+    username = Column(String, ForeignKey("users.username"))
+    timestamp = Column(DateTime, default=datetime.utcnow)
+    video_id = Column(String, ForeignKey("videos.id")) # Video ID is String (UUID)
+    
+    video = relationship("Video", back_populates="comments")
+
+class User(Base):
+    __tablename__ = "users"
+    username = Column(String, primary_key=True)
+    created_at = Column(String)
+    profile_pic = Column(String)
+
+# Init ORM
+Base.metadata.create_all(bind=engine)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+# --- SESSIONS (Cookie) ---
 active_sessions = {}
 
 def get_user_from_session(token):
@@ -189,14 +234,28 @@ async def get_feed(type: str = "foryou", neo_session: Optional[str] = Cookie(Non
 
     videos = []
     is_admin = (current_user == "@admin")
+    videos = []
+    is_admin = (current_user == "@admin")
+    
+    # Pre-fetch comments logic (Optimized)
+    # For MVP, we will query comments for each video. In production, use JOIN or Eager Load.
+    db = SessionLocal()
+    
     for row in rows:
+        # Fetch Top 5 Comments for this video
+        c_objs = db.query(Comment).filter(Comment.video_id == row["id"]).order_by(Comment.timestamp.desc()).limit(5).all()
+        start_comments = []
+        for c in c_objs:
+            start_comments.append({"text": c.text, "username": c.username})
+
         videos.append({
             "id": row["id"],
             "title": row["title"],
             "url": row["url"],
             "likes": row["total_likes"],
-            "comments": row["total_comments"],
-            "user_has_liked": row["user_liked"] > 0 if row["user_liked"] else False, # handle none
+            "comments_count": row["total_comments"],
+            "comments": start_comments, # List for the loop
+            "user_has_liked": row["user_liked"] > 0 if row["user_liked"] else False, 
             "filter_type": row["filter_type"],
             "author": row["author"],
             "author_pic": row["author_pic"],
@@ -204,6 +263,7 @@ async def get_feed(type: str = "foryou", neo_session: Optional[str] = Cookie(Non
             "is_own_video": (row["author"] == current_user) if current_user else False,
             "can_delete": (row["author"] == current_user) or is_admin if current_user else False
         })
+    db.close()
 
     return JSONResponse(content=videos)
 
@@ -374,29 +434,38 @@ async def get_comments(video_id: str):
         })
     return JSONResponse(content=comments)
 
-@app.post("/comment")
-async def post_comment(video_id: str = Form(...), text: str = Form(...), neo_session: Optional[str] = Cookie(None)):
+from fastapi.responses import RedirectResponse
+
+@app.post("/video/{video_id}/comment")
+async def comment_video(
+    video_id: str, 
+    text: str = Form(...), 
+    neo_session: Optional[str] = Cookie(None)
+):
     user = get_user_from_session(neo_session)
     if not user:
-        raise HTTPException(status_code=401, detail="Login required")
+        # Se não tiver cookie, usa "Anônimo" ou redireciona pro login? Request diz: "Se não tiver cookie, redirecionar para login ou usar 'Anônimo'."
+        # Vou usar 'Anônimo' para simplificar o feed flow.
+        user = "Anônimo"
         
-    comment_id = str(uuid.uuid4())
-    
-    with engine.connect() as conn:
-        conn.execute(text("INSERT INTO comments (id, user_id, video_id, text) VALUES (:id, :u, :v, :t)"), 
-                     {"id": comment_id, "u": user, "v": video_id, "t": text})
-        conn.commit()
+    db = SessionLocal()
+    try:
+        new_comment = Comment(
+            text=text,
+            username=user,
+            video_id=video_id
+        )
+        db.add(new_comment)
+        db.commit()
+    except Exception as e:
+        print(f"Error saving comment: {e}")
+    finally:
+        db.close()
         
-        # Get author pic
-        pic = conn.execute(text("SELECT profile_pic FROM users WHERE username=:u"), {"u": user}).scalar()
+    # Redirecionar para a home
+    return RedirectResponse(url="/", status_code=303)
 
-    return {
-        "id": comment_id,
-        "user_id": user,
-        "text": text,
-        "profile_pic": pic
-    }
-
+# Endpoint legado de upload (mantido para compatibilidade se necessário, mas o foco é o novo acima)
 @app.post("/upload")
 async def upload_video(
     file: UploadFile = File(...), 

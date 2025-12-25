@@ -762,6 +762,29 @@
                     <i class="fas fa-heart big-heart"></i>
                     ${deleteHTML}
 
+                // Comment Loop (Top 5)
+                let commentsHTML = '';
+                if (v.comments && v.comments.length > 0) {
+                    commentsHTML = '<div style="padding:10px; background:rgba(0,0,0,0.5); border-radius:10px; margin:10px; max-height:100px; overflow-y:auto;">';
+                    v.comments.forEach(c => {
+                        commentsHTML += `< div style = "font-size:0.85rem; margin-bottom:4px;" >
+                            <span style="color:var(--neon-cyan); font-weight:bold;">${c.username}</span> 
+                            <span style="color:#ddd;">${c.text}</span>
+                        </div > `;
+                    });
+                    commentsHTML += '</div>';
+                }
+
+                const div = document.createElement('div');
+                div.className = 'video-card';
+                div.innerHTML = `
+                    < video src = "${v.url}" class="${filterClass}" loop muted playsinline
+                onclick = "togglePlay(this)"
+                ondblclick = "doubleTapLike('${v.id}', this)" ></video >
+
+                    <i class="fas fa-heart big-heart"></i>
+                    ${ deleteHTML }
+
                     <div class="info-overlay">
                         <div class="username-row" onclick="openProfile('${v.author}')">
                             <div class="user-avatar-small" style="${avatarStyle}"></div>
@@ -769,7 +792,17 @@
                             ${followBtnHTML}
                         </div>
                         <div style="margin-top:5px;">${filterLabel} ${v.title}</div>
+                        
+                        <!-- COMMENT SECTION (New) -->
+                        <div class="comments-inline">
+                            ${commentsHTML}
+                            <form action="/video/${v.id}/comment" method="POST" style="display:flex; gap:5px; margin-top:5px;">
+                                <input type="text" name="text" placeholder="Comente..." class="input-dark" style="font-size:0.9rem; padding:8px; margin:0; flex:1; border:1px solid #444; background:black;">
+                                <button type="submit" style="background:var(--neon-purple); color:white; border:none; padding:8px 15px; border-radius:20px; font-weight:bold; cursor:pointer;">ENVIAR</button>
+                            </form>
+                        </div>
                     </div>
+
                     <div class="actions-sidebar">
                         <div class="action-btn" onclick="toggleLike('${v.id}', this)" style="text-align:center;">
                             <div class="action-icon ${likeClass}"><i class="fas fa-heart"></i></div>
@@ -777,7 +810,7 @@
                         </div>
                         <div class="action-btn" onclick="openComments('${v.id}')" style="text-align:center;">
                             <div class="action-icon"><i class="fas fa-comment-dots"></i></div>
-                            <span style="font-size:0.8em; margin-top:5px; display:block;">${v.comments}</span>
+                            <span style="font-size:0.8em; margin-top:5px; display:block;">${v.comments_count}</span>
                         </div>
                         <div class="action-icon btn-magic" onclick="openEffects('${v.id}')"><i class="fas fa-magic"></i></div>
                         <div class="action-icon" onclick="shareVideo('${v.url}')">
@@ -842,7 +875,7 @@
         async function deleteVideo(id) {
             if (!confirm("Tem certeza que quer apagar esse vídeo?")) return;
             try {
-                const res = await fetch(`/delete_video/${id}`, { method: 'DELETE' });
+                const res = await fetch(`/ delete_video / ${ id } `, { method: 'DELETE' });
                 if (res.ok) {
                     alert("Vídeo apagado.");
                     // Remove visualmente
@@ -863,7 +896,7 @@
             else { icon.classList.add('like-active'); count++; }
             span.innerText = count;
             try {
-                const res = await fetch(`/toggle_like/${id}`, { method: 'POST' });
+                const res = await fetch(`/ toggle_like / ${ id } `, { method: 'POST' });
                 const data = await res.json();
                 span.innerText = data.count;
                 if (data.liked) icon.classList.add('like-active');
@@ -876,7 +909,7 @@
             btn.innerText = ' • Seguindo...';
 
             try {
-                const res = await fetch(`/toggle_follow/${username}`, { method: 'POST' });
+                const res = await fetch(`/ toggle_follow / ${ username } `, { method: 'POST' });
                 const data = await res.json();
 
                 if (data.following) {
@@ -899,14 +932,14 @@
             currentProfileUsername = username;
             document.getElementById('profile-name').innerText = '@' + username;
             const picDiv = document.querySelector('.profile-pic');
-            picDiv.innerHTML = `<i class="fas fa-user-circle"></i>`;
+            picDiv.innerHTML = `< i class="fas fa-user-circle" ></i > `;
             picDiv.style.backgroundImage = 'none';
 
             const pScreen = document.getElementById('screen-profile');
             pScreen.classList.remove('hidden');
 
             try {
-                const res = await fetch(`/profile/${username}`);
+                const res = await fetch(`/ profile / ${ username } `);
                 const data = await res.json();
 
                 document.getElementById('p-followers').innerText = data.followers_count;
@@ -954,7 +987,7 @@
 
         async function toggleFollow() {
             if (!currentProfileUsername) return;
-            const res = await fetch(`/toggle_follow/${currentProfileUsername}`, { method: 'POST' });
+            const res = await fetch(`/ toggle_follow / ${ currentProfileUsername } `, { method: 'POST' });
             const data = await res.json();
             if (data.message === "Cannot follow self") return;
             updateFollowButton(data.following);
@@ -980,15 +1013,15 @@
             currentVideoCommentsId = vidId;
             document.getElementById('comments-modal').classList.add('open');
             document.getElementById('comments-list').innerHTML = 'Loading...';
-            const res = await fetch(`/comments/${vidId}`);
+            const res = await fetch(`/ comments / ${ vidId } `);
             const data = await res.json();
             const list = document.getElementById('comments-list');
             list.innerHTML = '';
             data.forEach(c => {
-                const bg = c.profile_pic ? `background-image:url('${c.profile_pic}')` : '';
+                const bg = c.profile_pic ? `background - image: url('${c.profile_pic}')` : '';
                 const item = document.createElement('div');
                 item.className = 'comment-item';
-                item.innerHTML = `<div class="comment-avatar" style="${bg}"></div><div class="comment-content"><b>@${c.user_id}</b> ${c.text}</div>`;
+                item.innerHTML = `< div class="comment-avatar" style = "${bg}" ></div > <div class="comment-content"><b>@${c.user_id}</b> ${c.text}</div>`;
                 list.appendChild(item);
             });
         }
@@ -1000,10 +1033,10 @@
             const res = await fetch('/comment', { method: 'POST', body: fd });
             const c = await res.json();
             const list = document.getElementById('comments-list');
-            const bg = c.profile_pic ? `background-image:url('${c.profile_pic}')` : '';
+            const bg = c.profile_pic ? `background - image: url('${c.profile_pic}')` : '';
             const item = document.createElement('div');
             item.className = 'comment-item';
-            item.innerHTML = `<div class="comment-avatar" style="${bg}"></div><div class="comment-content"><b>@${c.user_id}</b> ${c.text}</div>`;
+            item.innerHTML = `< div class="comment-avatar" style = "${bg}" ></div > <div class="comment-content"><b>@${c.user_id}</b> ${c.text}</div>`;
             list.appendChild(item);
             document.getElementById('c-text').value = '';
         }
@@ -1016,7 +1049,7 @@
             loadFeed();
         }
         function openEffects(id) { currentRemixId = id; document.getElementById('effects-modal').classList.add('open'); }
-        async function applyFilter(s) { if (!currentRemixId) return; await fetch(`/remix/${currentRemixId}?style=${s}`, { method: 'POST' }); document.getElementById('effects-modal').classList.remove('open'); loadFeed(); }
+        async function applyFilter(s) { if (!currentRemixId) return; await fetch(`/ remix / ${ currentRemixId }?style = ${ s }`, { method: 'POST' }); document.getElementById('effects-modal').classList.remove('open'); loadFeed(); }
     </script>
 </body>
 
