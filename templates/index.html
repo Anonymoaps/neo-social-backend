@@ -172,6 +172,7 @@
             z-index: 30;
             display: flex;
             justify-content: center;
+            align-items: center;
             gap: 20px;
             font-size: 1rem;
         }
@@ -188,6 +189,21 @@
             text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
             border-bottom: 2px solid white;
             padding-bottom: 3px;
+        }
+
+        /* LOGIN/LOGOUT BUTTON TOP */
+        .header-auth-btn {
+            position: absolute;
+            right: 20px;
+            top: -5px;
+            font-size: 0.8rem;
+            color: var(--neon-cyan);
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--neon-cyan);
+            padding: 5px 10px;
+            border-radius: 15px;
+            cursor: pointer;
+            z-index: 40;
         }
 
         .feed-container {
@@ -592,6 +608,7 @@
             <div class="feed-header">
                 <div id="tab-following" class="feed-tab" onclick="switchFeed('following')">Following</div>
                 <div id="tab-foryou" class="feed-tab active" onclick="switchFeed('foryou')">For You</div>
+                <button class="header-auth-btn" onclick="logoutFlow()">LOGOUT</button>
             </div>
 
             <div id="feed" class="feed-container"></div>
@@ -712,6 +729,7 @@
 
         // --- AUTH ---
         function fakeSocialLogin() {
+            // Placeholder: In a real app, this would use Google Identity Services SDK
             event.currentTarget.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Conectando...';
             setTimeout(() => {
                 document.getElementById('screen-social').classList.add('hidden');
@@ -727,7 +745,16 @@
                 document.getElementById('screen-onboarding').classList.add('hidden');
                 document.getElementById('screen-feed').classList.remove('hidden');
                 loadFeed();
+            } else {
+                alert("Erro ao entrar. Tente outro nome.");
             }
+        }
+        function logoutFlow() {
+            // Reset UI for demo
+            document.getElementById('screen-feed').classList.add('hidden');
+            document.getElementById('screen-social').classList.remove('hidden');
+            document.getElementById('usernameInput').value = '';
+            // Ideally clear cookies here
         }
 
         // --- RENDER ---
@@ -752,6 +779,21 @@
                     deleteHTML = `<i class="fas fa-trash btn-trash" onclick="deleteVideo('${v.id}')"></i>`;
                 }
 
+                // Comments Inline (Top 5 preview)
+                let commentsHTML = '';
+                // Note: v.comments needs to be populated by backend if we want inline preview
+                // The current API might not always return it, but assuming it does:
+                if (v.comments && v.comments.length > 0) {
+                    commentsHTML += '<div style="padding:10px; background:rgba(0,0,0,0.5); border-radius:10px; margin:10px; max-height:100px; overflow-y:auto;">';
+                    v.comments.forEach(c => {
+                        commentsHTML += `<div style="font-size:0.85rem; margin-bottom:4px;">
+                             <span style="color:var(--neon-cyan); font-weight:bold;">${c.username}</span> 
+                             <span style="color:#ddd;">${c.text}</span>
+                         </div>`;
+                    });
+                    commentsHTML += '</div>';
+                }
+
                 const div = document.createElement('div');
                 div.className = 'video-card';
                 div.innerHTML = `
@@ -762,29 +804,6 @@
                     <i class="fas fa-heart big-heart"></i>
                     ${deleteHTML}
 
-                // Comment Loop (Top 5)
-                let commentsHTML = '';
-                if (v.comments && v.comments.length > 0) {
-                    commentsHTML = '<div style="padding:10px; background:rgba(0,0,0,0.5); border-radius:10px; margin:10px; max-height:100px; overflow-y:auto;">';
-                    v.comments.forEach(c => {
-                        commentsHTML += `< div style = "font-size:0.85rem; margin-bottom:4px;" >
-                            <span style="color:var(--neon-cyan); font-weight:bold;">${c.username}</span> 
-                            <span style="color:#ddd;">${c.text}</span>
-                        </div > `;
-                    });
-                    commentsHTML += '</div>';
-                }
-
-                const div = document.createElement('div');
-                div.className = 'video-card';
-                div.innerHTML = `
-                    < video src = "${v.url}" class="${filterClass}" loop muted playsinline
-                onclick = "togglePlay(this)"
-                ondblclick = "doubleTapLike('${v.id}', this)" ></video >
-
-                    <i class="fas fa-heart big-heart"></i>
-                    ${ deleteHTML }
-
                     <div class="info-overlay">
                         <div class="username-row" onclick="openProfile('${v.author}')">
                             <div class="user-avatar-small" style="${avatarStyle}"></div>
@@ -793,10 +812,10 @@
                         </div>
                         <div style="margin-top:5px;">${filterLabel} ${v.title}</div>
                         
-                        <!-- COMMENT SECTION (New) -->
+                        <!-- COMMENT PREVIEW & INPUT -->
                         <div class="comments-inline">
                             ${commentsHTML}
-                            <form action="/video/${v.id}/comment" method="POST" style="display:flex; gap:5px; margin-top:5px;">
+                            <form action="#" onsubmit="submitInlineComment(event, '${v.id}')" style="display:flex; gap:5px; margin-top:5px;">
                                 <input type="text" name="text" placeholder="Comente..." class="input-dark" style="font-size:0.9rem; padding:8px; margin:0; flex:1; border:1px solid #444; background:black;">
                                 <button type="submit" style="background:var(--neon-purple); color:white; border:none; padding:8px 15px; border-radius:20px; font-weight:bold; cursor:pointer;">ENVIAR</button>
                             </form>
@@ -821,6 +840,18 @@
                 container.appendChild(div);
                 div.querySelector('video').play().catch(() => { });
             });
+        }
+
+        async function submitInlineComment(e, vidId) {
+            e.preventDefault();
+            const input = e.target.querySelector('input');
+            const txt = input.value;
+            if (!txt) return;
+
+            const fd = new FormData(); fd.append('video_id', vidId); fd.append('text', txt);
+            await fetch('/comment', { method: 'POST', body: fd });
+            input.value = '';
+            alert("Comentário enviado!");
         }
 
         // --- SHARE LOGIC ---
@@ -861,21 +892,13 @@
             void bigHeart.offsetWidth; // Force reflow
             bigHeart.classList.add('animate');
 
-            // Trigger Like Logic
-            // Check if already liked check is complex here directly, so we just toggle optimistic
-            // Ideally we check state, but for "double tap to like" usually it means "MAKE IT LIKED".
-            // If already liked, usually it does nothing or pulsing animation.
-            // For simplicity in MVP: We treat it as a toggle or enforcement of Like.
-            // Let's reuse toggleLike but force add if possible or just toggle.
-            // A simple implementation: Just call toggleLike.
-
             toggleLike(id, likeBtn);
         }
 
         async function deleteVideo(id) {
             if (!confirm("Tem certeza que quer apagar esse vídeo?")) return;
             try {
-                const res = await fetch(`/ delete_video / ${ id } `, { method: 'DELETE' });
+                const res = await fetch(`/delete_video/${id}`, { method: 'DELETE' });
                 if (res.ok) {
                     alert("Vídeo apagado.");
                     // Remove visualmente
@@ -896,7 +919,7 @@
             else { icon.classList.add('like-active'); count++; }
             span.innerText = count;
             try {
-                const res = await fetch(`/ toggle_like / ${ id } `, { method: 'POST' });
+                const res = await fetch(`/toggle_like/${id}`, { method: 'POST' });
                 const data = await res.json();
                 span.innerText = data.count;
                 if (data.liked) icon.classList.add('like-active');
@@ -909,7 +932,7 @@
             btn.innerText = ' • Seguindo...';
 
             try {
-                const res = await fetch(`/ toggle_follow / ${ username } `, { method: 'POST' });
+                const res = await fetch(`/toggle_follow/${username}`, { method: 'POST' });
                 const data = await res.json();
 
                 if (data.following) {
@@ -932,14 +955,14 @@
             currentProfileUsername = username;
             document.getElementById('profile-name').innerText = '@' + username;
             const picDiv = document.querySelector('.profile-pic');
-            picDiv.innerHTML = `< i class="fas fa-user-circle" ></i > `;
+            picDiv.innerHTML = `<i class="fas fa-user-circle"></i>`;
             picDiv.style.backgroundImage = 'none';
 
             const pScreen = document.getElementById('screen-profile');
             pScreen.classList.remove('hidden');
 
             try {
-                const res = await fetch(`/ profile / ${ username } `);
+                const res = await fetch(`/profile/${username}`);
                 const data = await res.json();
 
                 document.getElementById('p-followers').innerText = data.followers_count;
@@ -987,7 +1010,7 @@
 
         async function toggleFollow() {
             if (!currentProfileUsername) return;
-            const res = await fetch(`/ toggle_follow / ${ currentProfileUsername } `, { method: 'POST' });
+            const res = await fetch(`/toggle_follow/${currentProfileUsername}`, { method: 'POST' });
             const data = await res.json();
             if (data.message === "Cannot follow self") return;
             updateFollowButton(data.following);
@@ -1013,15 +1036,15 @@
             currentVideoCommentsId = vidId;
             document.getElementById('comments-modal').classList.add('open');
             document.getElementById('comments-list').innerHTML = 'Loading...';
-            const res = await fetch(`/ comments / ${ vidId } `);
+            const res = await fetch(`/comments/${vidId}`);
             const data = await res.json();
             const list = document.getElementById('comments-list');
             list.innerHTML = '';
             data.forEach(c => {
-                const bg = c.profile_pic ? `background - image: url('${c.profile_pic}')` : '';
+                const bg = c.profile_pic ? `background-image:url('${c.profile_pic}')` : '';
                 const item = document.createElement('div');
                 item.className = 'comment-item';
-                item.innerHTML = `< div class="comment-avatar" style = "${bg}" ></div > <div class="comment-content"><b>@${c.user_id}</b> ${c.text}</div>`;
+                item.innerHTML = `<div class="comment-avatar" style="${bg}"></div><div class="comment-content"><b>@${c.user_id}</b> ${c.text}</div>`;
                 list.appendChild(item);
             });
         }
@@ -1033,10 +1056,10 @@
             const res = await fetch('/comment', { method: 'POST', body: fd });
             const c = await res.json();
             const list = document.getElementById('comments-list');
-            const bg = c.profile_pic ? `background - image: url('${c.profile_pic}')` : '';
+            const bg = c.profile_pic ? `background-image:url('${c.profile_pic}')` : '';
             const item = document.createElement('div');
             item.className = 'comment-item';
-            item.innerHTML = `< div class="comment-avatar" style = "${bg}" ></div > <div class="comment-content"><b>@${c.user_id}</b> ${c.text}</div>`;
+            item.innerHTML = `<div class="comment-avatar" style="${bg}"></div><div class="comment-content"><b>@${c.user_id}</b> ${c.text}</div>`;
             list.appendChild(item);
             document.getElementById('c-text').value = '';
         }
@@ -1049,7 +1072,7 @@
             loadFeed();
         }
         function openEffects(id) { currentRemixId = id; document.getElementById('effects-modal').classList.add('open'); }
-        async function applyFilter(s) { if (!currentRemixId) return; await fetch(`/ remix / ${ currentRemixId }?style = ${ s }`, { method: 'POST' }); document.getElementById('effects-modal').classList.remove('open'); loadFeed(); }
+        async function applyFilter(s) { if (!currentRemixId) return; await fetch(`/remix/${currentRemixId}?style=${s}`, { method: 'POST' }); document.getElementById('effects-modal').classList.remove('open'); loadFeed(); }
     </script>
 </body>
 

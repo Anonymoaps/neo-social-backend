@@ -8,30 +8,41 @@ Painel de Arquivos (Cloudinary): https://cloudinary.com/console/media_library
 
 Código Fonte (GitHub): https://github.com/Anonymoaps/neo-social-backend
 
-2. 🛠️ Como Atualizar o Site
-Sempre que você mudar uma linha de código no VS Code, o site não muda sozinho. Você precisa enviar a atualização. No Terminal do VS Code, rode sempre a "Tríade Sagrada":
+2. ⌨️ Como Abrir o Terminal (A Caixa Preta)
+Se não estiver vendo onde digitar os comandos no VS Code:
+
+Vá no menu superior e clique em Terminal.
+
+Escolha Novo Terminal (New Terminal).
+
+A caixa preta aparecerá na parte de baixo da tela.
+
+🛠️ Como Atualizar o Site (A "Tríade Sagrada")
+Sempre que mudar o código, digite estes 3 comandos no Terminal, um por um:
 
 Bash
 
 git add .
-git commit -m "Escreva aqui o que você mudou"
+git commit -m "Explique aqui o que você mudou"
 git push
-Depois de dar git push, espere 2 a 3 minutos e o Render atualiza sozinho.
+O que acontece: O git push envia seu código para o GitHub. O Render percebe a mudança e atualiza o site sozinho em 2 ou 3 minutos.
 
 3. 🚨 Emergência (Apagar tudo e Recomeçar)
 Se o site travar ou você quiser limpar o cache:
 
 Vá no Render Dashboard.
 
-Botão "Manual Deploy".
+Clique no seu serviço (neo-social-app).
 
-Escolha "Clear build cache & deploy".
+Botão Manual Deploy.
+
+Escolha Clear build cache & deploy.
 
 4. 🕵️‍♂️ Moderação (Como apagar vídeos proibidos)
-Se um usuário postar algo errado e o botão de delete do site falhar:
+Se precisar remover um conteúdo manualmente:
 
 Entre no Cloudinary.
 
 Vá na pasta neo_videos.
 
-Apague o vídeo manualmente. (O vídeo some, mas o link quebrado pode ficar no site até você limpar o banco, mas pelo menos o conteúdo sai do ar).
+Apague o vídeo. (Isso tira o vídeo do ar imediatamente).
