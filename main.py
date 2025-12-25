@@ -51,23 +51,7 @@ else:
     DATABASE_URL = "sqlite:///neo.db"
     engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 
-# --- SUPER BLINDAGEM DE BANCO (SQL FIX) ---
-try:
-    with engine.connect() as conn:
-        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_pioneer BOOLEAN DEFAULT FALSE;"))
-        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT;"))
-        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_pic TEXT;"))
-        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS followers_count INTEGER DEFAULT 0;"))
-        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS following_count INTEGER DEFAULT 0;"))
-        
-        conn.execute(text("ALTER TABLE comments ADD COLUMN IF NOT EXISTS username TEXT;"))
-        conn.execute(text("ALTER TABLE comments ADD COLUMN IF NOT EXISTS timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP;"))
-        
-        conn.execute(text("CREATE TABLE IF NOT EXISTS follows (follower_id TEXT, followed_id TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (follower_id, followed_id));"))
-        conn.commit()
-    print("✅ Schema verificado: bio, profile_pic, counts, pioneer, comments, follows.")
-except Exception as e:
-    print(f"⚠️ Aviso SQL Startup: {e}")
+
 
 # --- CLOUDINARY SETUP ---
 cloudinary.config( 
@@ -122,6 +106,26 @@ class Follow(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 Base.metadata.create_all(bind=engine)
+
+def update_db_schema():
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_pioneer BOOLEAN DEFAULT FALSE;"))
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT;"))
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_pic TEXT;"))
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS followers_count INTEGER DEFAULT 0;"))
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS following_count INTEGER DEFAULT 0;"))
+            
+            conn.execute(text("ALTER TABLE comments ADD COLUMN IF NOT EXISTS username TEXT;"))
+            conn.execute(text("ALTER TABLE comments ADD COLUMN IF NOT EXISTS timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP;"))
+            
+            conn.execute(text("CREATE TABLE IF NOT EXISTS follows (follower_id TEXT, followed_id TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (follower_id, followed_id));"))
+            conn.commit()
+        print("✅ Schema verificado: bio, profile_pic, counts, pioneer, comments, follows.")
+    except Exception as e:
+        print(f"⚠️ Aviso SQL Schema Update: {e}")
+
+update_db_schema()
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 def get_db():
