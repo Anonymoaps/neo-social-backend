@@ -66,7 +66,11 @@ Base = declarative_base()
 
 class User(Base):
     __tablename__ = "users"
-    username = Column(String, primary_key=True)
+    username = Column(String, unique=True, nullable=True) # Can be null initially
+    email = Column(String, primary_key=True) # Email is now the primary key/unique identifier for login
+    password = Column(String) # Stored (hasing recommended in prod)
+    verification_code = Column(String)
+    is_verified = Column(Boolean, default=False)
     created_at = Column(String)
     profile_pic = Column(String)
     bio = Column(String, nullable=True)
@@ -108,9 +112,15 @@ class Follow(Base):
 # fix_comments_table() # Removed
 Base.metadata.create_all(bind=engine)
 
-def update_db_schema():
     try:
         with engine.connect() as conn:
+            # New Auth Columns
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT;"))
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS password TEXT;"))
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_code TEXT;"))
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT FALSE;"))
+            
+            # Existing columns
             conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_pioneer BOOLEAN DEFAULT FALSE;"))
             conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT;"))
             conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_pic TEXT;"))
@@ -122,7 +132,7 @@ def update_db_schema():
             
             conn.execute(text("CREATE TABLE IF NOT EXISTS follows (follower_id TEXT, followed_id TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (follower_id, followed_id));"))
             conn.commit()
-        print("✅ Schema verificado: bio, profile_pic, counts, pioneer, comments, follows.")
+        print("✅ Schema verificado: Auth + Core.")
     except Exception as e:
         print(f"⚠️ Aviso SQL Schema Update: {e}")
 
@@ -144,30 +154,105 @@ def get_user_from_session(request: Request):
 
 # --- ENDPOINTS ---
 
-@app.post("/login")
-async def login(request: Request, response: Response, username: str = Form(...)): 
-    print(f"Tentativa de login: {username}")
+# --- AUTH ROTAS PROFISSIONAIS (3 PASSOS) ---
+
+@app.post("/auth/register")
+async def auth_register(email: str = Form(...), password: str = Form(...)):
     db = SessionLocal()
     try:
-        user = db.query(User).filter(User.username == username).first()
-        if not user:
-            user_count = db.query(User).count()
-            is_pioneer = True if user_count < 1000 else False
+        # Check if email exists
+        existing = db.query(User).filter(User.email == email).first()
+        if existing and existing.is_verified:
+            return JSONResponse({"status": "error", "message": "Email já cadastrado"}, status_code=400)
+        
+        # Generator Code
+        code = str(random.randint(100000, 999999))
+        print(f"🔒 CÓDIGO DE VERIFICAÇÃO PARA {email}: {code}") # SIMULATION SMTP
+
+        if existing:
+            # Resend/Update code for unverified
+            existing.password = password
+            existing.verification_code = code
+        else:
+            # Create new unverified user
             new_user = User(
-                username=username, 
-                created_at=str(datetime.now()), 
-                profile_pic=f"https://ui-avatars.com/api/?name={username}&background=random", 
-                is_pioneer=is_pioneer
+                email=email,
+                password=password,
+                verification_code=code,
+                is_verified=False,
+                username=None, # Set in step 3
+                created_at=str(datetime.now()),
+                profile_pic="https://ui-avatars.com/api/?background=random", 
             )
             db.add(new_user)
-            db.commit()
-            print(f"Novo usuário criado: {username}")
-        else:
-            print(f"Usuário existente logado: {username}")
         
-        # KEY FIX: Store user in persistent session cookie
+        db.commit()
+        return {"status": "success", "message": "Código enviado", "email": email}
+    finally:
+        db.close()
+
+@app.post("/auth/verify")
+async def auth_verify(email: str = Form(...), code: str = Form(...), request: Request = None):
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.email == email).first()
+        if not user or user.verification_code != code:
+            return JSONResponse({"status": "error", "message": "Código inválido"}, status_code=400)
+        
+        user.is_verified = True
+        user.verification_code = None # Burn code
+        db.commit()
+        
+        return {"status": "success", "message": "Verificado"}
+    finally:
+        db.close()
+
+@app.post("/auth/set-username")
+async def auth_set_username(request: Request, response: Response, email: str = Form(...), username: str = Form(...)):
+    db = SessionLocal()
+    try:
+        # Unique check
+        if db.query(User).filter(User.username == username).first():
+             return JSONResponse({"status": "error", "message": "Username indisponível"}, status_code=400)
+        
+        user = db.query(User).filter(User.email == email).first()
+        if not user or not user.is_verified:
+             return JSONResponse({"status": "error", "message": "Usuário não verificado"}, status_code=400)
+             
+        user.username = username
+        user.profile_pic = f"https://ui-avatars.com/api/?name={username}&background=random"
+        db.commit()
+        
+        # Auto Login
         request.session["user"] = username
-        print("Login SUCESSO - Sessão persistente criada")
+        return {"status": "success", "redirect": "/"}
+    finally:
+        db.close()
+
+@app.post("/login")
+async def login(request: Request, response: Response, email: str = Form(...), password: str = Form(...)): 
+    print(f"Tentativa de login: {email}")
+    db = SessionLocal()
+    try:
+        # Login now via EMAIL
+        user = db.query(User).filter(User.email == email).first()
+        
+        if not user:
+             return RedirectResponse(url="/?error=inv_user", status_code=303)
+        
+        if user.password != password: # In prod use hashing!
+             return RedirectResponse(url="/?error=inv_pass", status_code=303)
+             
+        if not user.is_verified:
+             return RedirectResponse(url="/?error=unverified", status_code=303)
+        
+        # Ensure username is set
+        if not user.username:
+             return RedirectResponse(url="/?error=no_username", status_code=303)
+
+        # KEY FIX: Store user in persistent session cookie
+        request.session["user"] = user.username
+        print(f"Login SUCESSO - {user.username}")
         return RedirectResponse(url="/", status_code=303)
     except Exception as e:
         print(f"Erro no login: {e}")

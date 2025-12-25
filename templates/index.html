@@ -68,19 +68,61 @@
     <div id="loginModal" class="modal-overlay" style="display: flex;">
         <div class="modal-box"
             style="z-index: 9999999 !important; position: relative; pointer-events: auto !important;">
-            <h1>NEO</h1>
-            <form action="/login" method="post">
-                <div class="input-group">
-                    <input type="text" name="username" id="loginUser" placeholder="Username" required>
+
+            <!-- ABAS -->
+            <div style="display:flex; justify-content:center; gap:20px; margin-bottom:20px;">
+                <button onclick="showLogin()" id="tabLogin"
+                    style="background:none; border:none; color:white; font-weight:bold; cursor:pointer; border-bottom: 2px solid var(--primary);">Entrar</button>
+                <button onclick="showSignup()" id="tabSignup"
+                    style="background:none; border:none; color:#555; font-weight:bold; cursor:pointer;">Criar
+                    Conta</button>
+            </div>
+
+            <!-- LOGIN -->
+            <div id="viewLogin">
+                <h1>Bem-vindo</h1>
+                <form action="/login" method="post">
+                    <div class="input-group">
+                        <input type="email" name="email" placeholder="Seu Email" required>
+                    </div>
+                    <div class="input-group">
+                        <input type="password" name="password" placeholder="Senha" required>
+                    </div>
+                    <div id="loginError" style="color: #ff2e63; font-size: 0.9em; margin-bottom: 10px; display: none;">
+                        Credenciais inválidas
+                    </div>
+                    <button type="submit" class="primary-btn">Entrar</button>
+                </form>
+            </div>
+
+            <!-- SIGNUP WIZARD -->
+            <div id="viewSignup" style="display:none;">
+
+                <!-- STEP 1: CREDENCIAIS -->
+                <div id="step1">
+                    <h3>Criar Conta</h3>
+                    <div class="input-group"><input type="email" id="regEmail" placeholder="Email"></div>
+                    <div class="input-group"><input type="password" id="regPass" placeholder="Senha"></div>
+                    <button class="primary-btn" onclick="doRegister()">Próximo ></button>
                 </div>
-                <!-- Error PlaceHolder -->
-                <div id="loginError" style="color: #ff2e63; font-size: 0.9em; margin-bottom: 10px; display: none;">
-                    Usuário ou senha inválidos
+
+                <!-- STEP 2: CODIGO -->
+                <div id="step2" style="display:none;">
+                    <h3>Verificação</h3>
+                    <p style="font-size:0.8em; color:#aaa;">Enviamos um código para seu email.</p>
+                    <div class="input-group"><input type="text" id="regCode" placeholder="Código 6 dígitos"></div>
+                    <button class="primary-btn" onclick="doVerify()">Validar</button>
                 </div>
-                <button type="submit" class="primary-btn">Entrar</button>
-            </form>
-            <button class="primary-btn" style="background:#333; margin-top:10px;"
-                onclick="document.getElementById('loginModal').style.display='none'">Fechar</button>
+
+                <!-- STEP 3: USERNAME -->
+                <div id="step3" style="display:none;">
+                    <h3>Sua Identidade</h3>
+                    <div class="input-group"><input type="text" id="regUser" placeholder="@username_unico"></div>
+                    <button class="primary-btn" onclick="doSetUser()">Finalizar! 🚀</button>
+                </div>
+
+            </div>
+
         </div>
     </div>
 
