@@ -6,3 +6,4 @@ pyngrok
 psycopg2-binary
 cloudinary
 sqlalchemy
+itsdangerous

@@ -193,8 +193,8 @@ async def get_current_user_api(request: Request):
         db.close()
 
 @app.get("/feed")
-async def get_feed(type: str = "foryou", neo_session: Optional[str] = Cookie(None)):
-    current_user = get_user_from_session(neo_session) or ""
+async def get_feed(request: Request, type: str = "foryou"):
+    current_user = get_user_from_session(request) or ""
     
     with engine.connect() as conn:
         if type == "following" and current_user:
@@ -337,11 +337,11 @@ async def get_public_profile_api(username: str):
 
 @app.post("/update_profile")
 async def update_profile(
+    request: Request,
     bio: Optional[str] = Form(None),
-    profile_pic: Optional[str] = Form(None),
-    neo_session: Optional[str] = Cookie(None)
+    profile_pic: Optional[str] = Form(None)
 ):
-    user_name = get_user_from_session(neo_session)
+    user_name = get_user_from_session(request)
     if not user_name: raise HTTPException(status_code=401)
     
     db = SessionLocal()
@@ -359,8 +359,8 @@ async def update_profile(
         db.close()
 
 @app.post("/user/{username}/follow")
-async def toggle_follow(username: str, neo_session: Optional[str] = Cookie(None)):
-    current_user = get_user_from_session(neo_session)
+async def toggle_follow(request: Request, username: str):
+    current_user = get_user_from_session(request)
     if not current_user: raise HTTPException(status_code=401)
     if current_user == username: return {"message": "Cannot follow self", "following": False}
 
@@ -393,8 +393,8 @@ async def read_root(request: Request):
 
 # Upload / Comments / Like
 @app.post("/upload")
-async def upload_video(file: UploadFile = File(...), title: str = Form(...), neo_session: Optional[str] = Cookie(None)):
-    author = get_user_from_session(neo_session)
+async def upload_video(request: Request, file: UploadFile = File(...), title: str = Form(...)):
+    author = get_user_from_session(request)
     if not author: raise HTTPException(status_code=401)
     try:
         res = cloudinary.uploader.upload(file.file, resource_type="video", folder="neo_videos")
@@ -407,8 +407,8 @@ async def upload_video(file: UploadFile = File(...), title: str = Form(...), neo
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 @app.post("/video/{video_id}/comment")
-async def comment_video(video_id: str, text: str = Form(...), neo_session: Optional[str] = Cookie(None)):
-    user = get_user_from_session(neo_session)
+async def comment_video(request: Request, video_id: str, text: str = Form(...)):
+    user = get_user_from_session(request)
     if not user: raise HTTPException(status_code=401)
     db = SessionLocal()
     # Ensure video exists
@@ -430,8 +430,8 @@ async def get_comments(video_id: str):
     return [{"text":r["text"], "username":r["username"], "profile_pic":r["profile_pic"], "is_pioneer":r["is_pioneer"]} for r in res]
 
 @app.post("/toggle_like/{video_id}")
-async def toggle_like(video_id: str, neo_session: Optional[str] = Cookie(None)):
-    user = get_user_from_session(neo_session)
+async def toggle_like(request: Request, video_id: str):
+    user = get_user_from_session(request)
     if not user: raise HTTPException(status_code=401)
     db = SessionLocal()
     like = db.query(Like).filter(Like.user_id==user, Like.video_id==video_id).first()
