@@ -243,12 +243,17 @@ def get_profile_data(db, username, current_user_name):
         likes_cnt = db.query(Like).filter(Like.video_id == v.id).count()
         total_received_likes += likes_cnt
         video_list.append({"id": v.id, "url": v.url, "likes": likes_cnt})
-        
+    
+    is_following = False
+    if current_user_name and current_user_name != username:
+        is_following = db.query(Follow).filter(Follow.follower_id == current_user_name, Follow.followed_id == username).count() > 0
+
     return {
         "user": user,
         "videos": video_list,
         "likes_count": total_received_likes,
-        "is_me": (username == current_user_name)
+        "is_me": (username == current_user_name),
+        "is_following": is_following
     }
 
 @app.get("/me", response_class=HTMLResponse)
@@ -266,7 +271,8 @@ async def my_profile(request: Request, neo_session: Optional[str] = Cookie(None)
             "user": data["user"],
             "videos": data["videos"],
             "likes_count": data["likes_count"],
-            "is_me": True
+            "is_me": True,
+            "is_following": False # Always false for self
         })
     finally:
         db.close()
@@ -286,7 +292,8 @@ async def get_public_profile_page(request: Request, username: str, neo_session: 
             "user": data["user"],
             "videos": data["videos"],
             "likes_count": data["likes_count"],
-            "is_me": False
+            "is_me": False,
+            "is_following": data["is_following"]
         })
     finally:
         db.close()
@@ -328,13 +335,42 @@ async def update_profile(
     try:
         user = db.query(User).filter(User.username == user_name).first()
         if user:
-            # Flexible Update Logic
+            # Allow clearing fields if they are sent as empty strings
             if bio is not None:
-                user.bio = bio
-            if profile_pic is not None and len(profile_pic.strip()) > 0:
-                user.profile_pic = profile_pic
+                user.bio = bio # Empty string is valid (clears bio)
+            if profile_pic is not None:
+                user.profile_pic = profile_pic # Empty string is valid
             db.commit()
             return {"message": "Updated"}
+    finally:
+        db.close()
+
+@app.post("/user/{username}/follow")
+async def toggle_follow(username: str, neo_session: Optional[str] = Cookie(None)):
+    current_user = get_user_from_session(neo_session)
+    if not current_user: raise HTTPException(status_code=401)
+    if current_user == username: return {"message": "Cannot follow self", "following": False}
+
+    db = SessionLocal()
+    try:
+        existing = db.query(Follow).filter(Follow.follower_id == current_user, Follow.followed_id == username).first()
+        if existing:
+            db.delete(existing)
+            user_target = db.query(User).filter(User.username == username).first()
+            if user_target: user_target.followers_count = max(0, user_target.followers_count - 1)
+            me = db.query(User).filter(User.username == current_user).first()
+            if me: me.following_count = max(0, me.following_count - 1)
+            following = False
+        else:
+            db.add(Follow(follower_id=current_user, followed_id=username))
+            user_target = db.query(User).filter(User.username == username).first()
+            if user_target: user_target.followers_count += 1
+            me = db.query(User).filter(User.username == current_user).first()
+            if me: me.following_count += 1
+            following = True
+        
+        db.commit()
+        return {"following": following, "followers_count": user_target.followers_count if user_target else 0}
     finally:
         db.close()
 
