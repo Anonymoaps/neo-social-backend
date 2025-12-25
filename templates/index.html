@@ -21,8 +21,8 @@
         </div>
         <div style="display:flex; gap:10px;">
             <!-- My Profile Button -->
-            <a href="/me" class="nav-item" style="color: inherit; text-decoration: none;"><i class="fas fa-user-circle"
-                    style="font-size:1.5em;"></i></a>
+            <a href="/me" class="profile-icon" style="color: inherit; text-decoration: none; margin-right: 15px;"><i
+                    class="fas fa-user-circle" style="font-size:1.5em;"></i></a>
             <button class="btn-upload" onclick="openUpload()">+ Upload</button>
         </div>
     </div>
@@ -66,7 +66,7 @@
         </div>
     </div>
 
-    <!-- PROFILE VIEW OVERLAY -->
+    <!-- PROFILE VIEW OVERLAY (Public Profile) -->
     <div id="profileView" class="profile-view">
         <div class="close-profile" onclick="closeProfile()">✕</div>
 
@@ -94,31 +94,10 @@
                 </div>
             </div>
 
-            <!-- Action Buttons -->
-            <div id="profileActions" style="margin-top:20px;">
-                <!-- Inject via JS: 'Edit' or 'Follow' -->
-            </div>
+            <div id="profileActions" style="margin-top:20px;"></div>
         </div>
 
         <div class="profile-grid" id="profileGrid"></div>
-    </div>
-
-    <!-- EDIT PROFILE MODAL -->
-    <div id="editProfileModal" class="modal-overlay">
-        <div class="modal-box">
-            <h2>Edit Profile</h2>
-            <div class="input-group">
-                <label style="font-size:0.8em; color:#aaa;">Profile Pic URL</label>
-                <input type="text" id="editPic" placeholder="https://...">
-            </div>
-            <div class="input-group">
-                <label style="font-size:0.8em; color:#aaa;">Bio</label>
-                <input type="text" id="editBio" placeholder="Tell about yourself...">
-            </div>
-            <button class="primary-btn" onclick="saveProfile()">Save Changes</button>
-            <button class="primary-btn" style="background:#333; margin-top:10px;"
-                onclick="document.getElementById('editProfileModal').style.display='none'">Cancel</button>
-        </div>
     </div>
 
     <script>
@@ -128,6 +107,7 @@
 
         async function init() {
             try {
+                // Using /api/me to get JSON data
                 const res = await fetch('/api/me', { credentials: 'include' });
                 if (res.ok) {
                     const data = await res.json();
@@ -251,12 +231,9 @@
             openComments(currentVideoId);
         }
 
-        /* PROFILE */
-        function openMyProfile() { if (currentUser) openProfile(currentUser.user); }
-
+        /* PUBLIC PROFILE (Drawer) */
         async function openProfile(username) {
             document.getElementById('profileView').style.display = 'flex';
-            // Mock loading
             document.getElementById('pName').innerText = "Loading...";
 
             const res = await fetch(`/user/${username}`);
@@ -276,20 +253,10 @@
                     grid.innerHTML += `<div class="grid-item"><video src="${v.url}"></video></div>`;
                 });
 
-                // Action Button logic
+                // Action: Follow (Only if not me)
                 const actions = document.getElementById('profileActions');
                 actions.innerHTML = '';
-
-                if (currentUser && currentUser.user === username) {
-                    // My Profile -> Edit
-                    const btn = document.createElement('button');
-                    btn.className = 'primary-btn';
-                    btn.innerText = "Edit Profile";
-                    btn.onclick = () => openEditProfile(data.profile_pic, data.bio);
-                    btn.style.width = '150px';
-                    actions.appendChild(btn);
-                } else {
-                    // Other -> Follow
+                if (currentUser && currentUser.user !== username) {
                     const btn = document.createElement('button');
                     btn.className = 'primary-btn';
                     btn.innerText = "Follow";
@@ -298,34 +265,7 @@
                 }
             }
         }
-
         function closeProfile() { document.getElementById('profileView').style.display = 'none'; }
-
-        /* EDIT PROFILE */
-        function openEditProfile(currentPic, currentBio) {
-            document.getElementById('editPic').value = currentPic;
-            document.getElementById('editBio').value = currentBio;
-            document.getElementById('editProfileModal').style.display = 'flex';
-        }
-
-        async function saveProfile() {
-            const bio = document.getElementById('editBio').value;
-            const pic = document.getElementById('editPic').value;
-
-            const fd = new FormData();
-            fd.append('bio', bio);
-            fd.append('profile_pic', pic);
-
-            const res = await fetch('/update_profile', { method: 'POST', body: fd });
-            if (res.ok) {
-                alert("Profile Updated!");
-                document.getElementById('editProfileModal').style.display = 'none';
-                // Reload profile view
-                openProfile(currentUser.user);
-                // Refresh local User
-                init();
-            }
-        }
 
         /* UPLOAD */
         function openUpload() { document.getElementById('uploadModal').style.display = 'flex'; }

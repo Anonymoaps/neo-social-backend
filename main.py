@@ -173,9 +173,10 @@ async def get_current_user_api(neo_session: Optional[str] = Cookie(None)):
         db.close()
 
 @app.get("/me", response_class=HTMLResponse)
-async def get_my_profile_page(request: Request, neo_session: Optional[str] = Cookie(None)):
+async def my_profile(request: Request, neo_session: Optional[str] = Cookie(None)):
     user_name = get_user_from_session(neo_session)
     if not user_name:
+        # Redirect to home/login if not logged in
         return RedirectResponse(url="/")
         
     db = SessionLocal()
@@ -183,7 +184,6 @@ async def get_my_profile_page(request: Request, neo_session: Optional[str] = Coo
         user = db.query(User).filter(User.username == user_name).first()
         if not user: return RedirectResponse(url="/")
         
-        # Get Videos
         videos = db.query(Video).filter(Video.author == user_name).order_by(Video.created_at.desc()).all()
         # Likes Received
         likes_count = db.execute(text("SELECT COUNT(*) FROM likes l JOIN videos v ON l.video_id=v.id WHERE v.author=:u"), {"u":user_name}).scalar()
@@ -234,10 +234,7 @@ async def get_public_profile(username: str):
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         
-        # Recalcular counts "real-time" se quiser, ou usar colunas cacheadas
-        # Para MVP: usar colunas cacheadas + query videos
         videos = db.query(Video).filter(Video.author == username).order_by(Video.created_at.desc()).all()
-        # Likes recebidos
         likes_recv = db.execute(text("SELECT COUNT(*) FROM likes l JOIN videos v ON l.video_id=v.id WHERE v.author=:u"), {"u":username}).scalar()
 
         return {
