@@ -18,8 +18,13 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
+from starlette.middleware.sessions import SessionMiddleware
+
 # --- CONFIGURAÇÃO INICIAL (V-CLOUD) ---
 app = FastAPI(title="NEO Social Engine V-Cloud", version="15.5.0")
+
+# SECURITY: Secret Key for Session persistence
+app.add_middleware(SessionMiddleware, secret_key=os.getenv("SECRET_KEY", "chave-super-secreta-fixa-neo-2025-v1"), https_only=True, same_site="lax", max_age=3600*24*7)
 
 app.add_middleware(
     CORSMiddleware,
@@ -126,29 +131,21 @@ def get_db():
     finally:
         db.close()
 
-# --- SESSIONS ---
-active_sessions = {}
-def get_user_from_session(token):
-    return active_sessions.get(token)
+# --- SESSIONS (REFACTORED TO COOKIE SESSION) ---
+# Removed active_sessions dict to depend on SessionMiddleware
+    
+def get_user_from_session(request: Request):
+    return request.session.get("user")
 
 # --- ENDPOINTS ---
 
 @app.post("/login")
-@app.post("/login")
-async def login(response: Response, username: str = Form(...)): 
+async def login(request: Request, response: Response, username: str = Form(...)): 
     print(f"Tentativa de login: {username}")
     db = SessionLocal()
     try:
         user = db.query(User).filter(User.username == username).first()
         if not user:
-            # Login logic: Create if not exists (User choice: Implicit Register)
-            # Or if authentication failed for existing user (Password not implemented yet, assuming username only for now as per code)
-            # The current logic creates a user if not found.
-            # However, if the user requested "Invalid user/password logic", they might imply a password field exists or they want stricter username checks.
-            # Given the existing code creates users on fly, I will keep it but ensure session is set securely.
-            # If the requirement is to fail on wrong password, I would need a password field.
-            # Assuming 'Login Loop' is due to cookie drop.
-            
             user_count = db.query(User).count()
             is_pioneer = True if user_count < 1000 else False
             new_user = User(
@@ -163,21 +160,9 @@ async def login(response: Response, username: str = Form(...)):
         else:
             print(f"Usuário existente logado: {username}")
         
-        session_token = str(uuid.uuid4())
-        active_sessions[session_token] = username
-        
-        # FIX: Secure cookies for Render/HTTPS
-        # The user requested app.config['SESSION_COOKIE_SECURE'] = True
-        # In FastAPI response.set_cookie: secure=True
-        
-        response.set_cookie(
-            key="neo_session", 
-            value=session_token, 
-            httponly=True, 
-            samesite='lax', 
-            secure=True, # Critical for Render HTTPS
-            max_age=3600*24*7
-        )
+        # KEY FIX: Store user in persistent session cookie
+        request.session["user"] = username
+        print("Login SUCESSO - Sessão persistente criada")
         return RedirectResponse(url="/", status_code=303)
     except Exception as e:
         print(f"Erro no login: {e}")
@@ -186,13 +171,13 @@ async def login(response: Response, username: str = Form(...)):
         db.close()
 
 @app.post("/logout")
-async def logout(response: Response):
-    response.delete_cookie("neo_session")
+async def logout(request: Request):
+    request.session.clear()
     return {"message": "Logged out"}
 
 @app.get("/api/me")
-async def get_current_user_api(neo_session: Optional[str] = Cookie(None)):
-    user_name = get_user_from_session(neo_session)
+async def get_current_user_api(request: Request):
+    user_name = get_user_from_session(request)
     if not user_name:
         return JSONResponse(content={"user": None}, status_code=200) # Return null user instead of 401 for frontend check
     db = SessionLocal()
