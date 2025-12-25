@@ -101,24 +101,32 @@
                 <!-- STEP 1: CREDENCIAIS -->
                 <div id="step1">
                     <h3>Criar Conta</h3>
-                    <div class="input-group"><input type="email" id="regEmail" placeholder="Email"></div>
-                    <div class="input-group"><input type="password" id="regPass" placeholder="Senha"></div>
-                    <button class="primary-btn" onclick="doRegister()">Próximo ></button>
+                    <form onsubmit="handleRegisterStep1(event)">
+                        <div class="input-group"><input type="email" id="regEmail" placeholder="Email" required></div>
+                        <div class="input-group"><input type="password" id="regPass" placeholder="Senha" required></div>
+                        <button type="submit" class="primary-btn" id="btnStep1">Próximo ></button>
+                    </form>
                 </div>
 
                 <!-- STEP 2: CODIGO -->
                 <div id="step2" style="display:none;">
                     <h3>Verificação</h3>
                     <p style="font-size:0.8em; color:#aaa;">Enviamos um código para seu email.</p>
-                    <div class="input-group"><input type="text" id="regCode" placeholder="Código 6 dígitos"></div>
-                    <button class="primary-btn" onclick="doVerify()">Validar</button>
+                    <form onsubmit="handleRegisterStep2(event)">
+                        <div class="input-group"><input type="text" id="regCode" placeholder="Código 6 dígitos"
+                                required></div>
+                        <button type="submit" class="primary-btn" id="btnStep2">Validar</button>
+                    </form>
                 </div>
 
                 <!-- STEP 3: USERNAME -->
                 <div id="step3" style="display:none;">
                     <h3>Sua Identidade</h3>
-                    <div class="input-group"><input type="text" id="regUser" placeholder="@username_unico"></div>
-                    <button class="primary-btn" onclick="doSetUser()">Finalizar! 🚀</button>
+                    <form onsubmit="handleRegisterStep3(event)">
+                        <div class="input-group"><input type="text" id="regUser" placeholder="@username_unico" required>
+                        </div>
+                        <button type="submit" class="primary-btn" id="btnStep3">Finalizar! 🚀</button>
+                    </form>
                 </div>
 
             </div>
@@ -213,56 +221,85 @@
             } catch (e) { console.error(e); }
         }
 
-        async function doRegister() {
-            // Step 1 -> Server -> Step 2
+        async function handleRegisterStep1(e) {
+            e.preventDefault();
+            const btn = document.getElementById('btnStep1');
+            const originalText = btn.innerText;
+            btn.innerText = "Enviando..."; btn.disabled = true;
+
             const email = document.getElementById('regEmail').value;
             const pass = document.getElementById('regPass').value;
-            if (!email || !pass) return alert("Preencha tudo");
 
-            const fd = new FormData(); fd.append('email', email); fd.append('password', pass);
-            const res = await fetch('/auth/register', { method: 'POST', body: fd });
-            const data = await res.json();
+            try {
+                const fd = new FormData(); fd.append('email', email); fd.append('password', pass);
+                const res = await fetch('/auth/register', { method: 'POST', body: fd });
+                const data = await res.json();
 
-            if (data.status === 'success') {
-                document.getElementById('step1').style.display = 'none';
-                document.getElementById('step2').style.display = 'block';
-            } else {
-                alert("Erro: " + data.message);
+                if (data.status === 'success') {
+                    document.getElementById('step1').style.display = 'none';
+                    document.getElementById('step2').style.display = 'block';
+                } else {
+                    alert("Erro: " + data.message);
+                }
+            } catch (err) {
+                alert("Erro de conexão: " + err);
+            } finally {
+                btn.innerText = originalText; btn.disabled = false;
             }
         }
 
-        async function doVerify() {
-            // Step 2 -> Server -> Step 3
+        async function handleRegisterStep2(e) {
+            e.preventDefault();
+            const btn = document.getElementById('btnStep2');
+            const originalText = btn.innerText;
+            btn.innerText = "Verificando..."; btn.disabled = true;
+
             const email = document.getElementById('regEmail').value;
             const code = document.getElementById('regCode').value;
 
-            const fd = new FormData(); fd.append('email', email); fd.append('code', code);
-            const res = await fetch('/auth/verify', { method: 'POST', body: fd });
-            const data = await res.json();
+            try {
+                const fd = new FormData(); fd.append('email', email); fd.append('code', code);
+                const res = await fetch('/auth/verify', { method: 'POST', body: fd });
+                const data = await res.json();
 
-            if (data.status === 'success') {
-                document.getElementById('step2').style.display = 'none';
-                document.getElementById('step3').style.display = 'block';
-            } else {
-                alert("Código inválido");
+                if (data.status === 'success') {
+                    document.getElementById('step2').style.display = 'none';
+                    document.getElementById('step3').style.display = 'block';
+                } else {
+                    alert("Código inválido ou expirado.");
+                }
+            } catch (err) {
+                alert("Erro de conexão: " + err);
+            } finally {
+                btn.innerText = originalText; btn.disabled = false;
             }
         }
 
-        async function doSetUser() {
-            // Step 3 -> Server -> Login
+        async function handleRegisterStep3(e) {
+            e.preventDefault();
+            const btn = document.getElementById('btnStep3');
+            btn.innerText = "Criando..."; btn.disabled = true;
+
             const email = document.getElementById('regEmail').value;
             const user = document.getElementById('regUser').value;
 
-            const fd = new FormData(); fd.append('email', email); fd.append('username', user);
-            const res = await fetch('/auth/set-username', { method: 'POST', body: fd });
-            const data = await res.json();
+            try {
+                const fd = new FormData(); fd.append('email', email); fd.append('username', user);
+                const res = await fetch('/auth/set-username', { method: 'POST', body: fd });
+                const data = await res.json();
 
-            if (data.status === 'success') {
-                window.location.reload();
-            } else {
-                alert("Erro: " + data.message);
+                if (data.status === 'success') {
+                    window.location.reload();
+                } else {
+                    alert("Erro: " + data.message);
+                    btn.innerText = "Tentar Novamente"; btn.disabled = false;
+                }
+            } catch (err) {
+                alert("Erro fatal: " + err);
+                btn.disabled = false;
             }
         }
+
 
         /* FEED LOGIC */
         function switchFeed(type, el) {
