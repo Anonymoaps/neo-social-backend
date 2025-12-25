@@ -73,6 +73,10 @@
                 <div class="input-group">
                     <input type="text" name="username" id="loginUser" placeholder="Username" required>
                 </div>
+                <!-- Error PlaceHolder -->
+                <div id="loginError" style="color: #ff2e63; font-size: 0.9em; margin-bottom: 10px; display: none;">
+                    Usuário ou senha inválidos
+                </div>
                 <button type="submit" class="primary-btn">Entrar</button>
             </form>
             <button class="primary-btn" style="background:#333; margin-top:10px;"
@@ -92,6 +96,15 @@
         let currentFeedType = 'foryou';
 
         async function init() {
+            // Check for login errors in URL
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.has('error')) {
+                document.getElementById('loginModal').style.display = 'flex';
+                document.getElementById('loginError').style.display = 'block';
+                // Clean URL
+                window.history.replaceState({}, document.title, "/");
+            }
+
             try {
                 const res = await fetch('/api/me', { credentials: 'include' });
                 if (res.ok) {

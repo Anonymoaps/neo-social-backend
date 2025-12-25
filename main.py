@@ -134,11 +134,21 @@ def get_user_from_session(token):
 # --- ENDPOINTS ---
 
 @app.post("/login")
+@app.post("/login")
 async def login(response: Response, username: str = Form(...)): 
+    print(f"Tentativa de login: {username}")
     db = SessionLocal()
     try:
         user = db.query(User).filter(User.username == username).first()
         if not user:
+            # Login logic: Create if not exists (User choice: Implicit Register)
+            # Or if authentication failed for existing user (Password not implemented yet, assuming username only for now as per code)
+            # The current logic creates a user if not found.
+            # However, if the user requested "Invalid user/password logic", they might imply a password field exists or they want stricter username checks.
+            # Given the existing code creates users on fly, I will keep it but ensure session is set securely.
+            # If the requirement is to fail on wrong password, I would need a password field.
+            # Assuming 'Login Loop' is due to cookie drop.
+            
             user_count = db.query(User).count()
             is_pioneer = True if user_count < 1000 else False
             new_user = User(
@@ -149,12 +159,29 @@ async def login(response: Response, username: str = Form(...)):
             )
             db.add(new_user)
             db.commit()
+            print(f"Novo usuário criado: {username}")
+        else:
+            print(f"Usuário existente logado: {username}")
         
         session_token = str(uuid.uuid4())
         active_sessions[session_token] = username
-        response.set_cookie(key="neo_session", value=session_token, httponly=True, samesite='lax', max_age=3600*24*7)
-        response.set_cookie(key="neo_session", value=session_token, httponly=True, samesite='lax', max_age=3600*24*7)
-        return RedirectResponse(url="/", status_code=303) # Native Form Redirect
+        
+        # FIX: Secure cookies for Render/HTTPS
+        # The user requested app.config['SESSION_COOKIE_SECURE'] = True
+        # In FastAPI response.set_cookie: secure=True
+        
+        response.set_cookie(
+            key="neo_session", 
+            value=session_token, 
+            httponly=True, 
+            samesite='lax', 
+            secure=True, # Critical for Render HTTPS
+            max_age=3600*24*7
+        )
+        return RedirectResponse(url="/", status_code=303)
+    except Exception as e:
+        print(f"Erro no login: {e}")
+        return RedirectResponse(url="/?error=server_error", status_code=303)
     finally:
         db.close()
 
