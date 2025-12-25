@@ -84,27 +84,24 @@ class Video(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     comments = relationship("Comment", back_populates="video", cascade="all, delete-orphan")
 
-class Comment(Base):
     __tablename__ = "comments"
-    id = Column(Integer, primary_key=True, autoincrement=True)
+    id = Column(Integer, primary_key=True, autoincrement=True) # Explicit autoincrement
     text = Column(String)
     username = Column(String, ForeignKey("users.username"))
     timestamp = Column(DateTime, default=datetime.utcnow)
     video_id = Column(String, ForeignKey("videos.id"))
     video = relationship("Video", back_populates="comments")
 
-class Like(Base):
-    __tablename__ = "likes"
-    user_id = Column(String, ForeignKey("users.username"), primary_key=True)
-    video_id = Column(String, ForeignKey("videos.id"), primary_key=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+def fix_comments_table():
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("DROP TABLE IF EXISTS comments CASCADE;")) # Cascade to be safe
+            conn.commit()
+        print("--- TABELA COMMENTS RESETADA (FIX SERIAL ID) ---")
+    except Exception as e:
+        print(f"Erro ao resetar comments: {e}")
 
-class Follow(Base):
-    __tablename__ = "follows"
-    follower_id = Column(String, ForeignKey("users.username"), primary_key=True)
-    followed_id = Column(String, ForeignKey("users.username"), primary_key=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-
+fix_comments_table() # Run before create_all
 Base.metadata.create_all(bind=engine)
 
 def update_db_schema():
