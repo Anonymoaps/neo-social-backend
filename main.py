@@ -1,10 +1,14 @@
 import shutil
 import os
 import uuid
-import sqlite3
 import random
 from typing import Optional
 from datetime import datetime
+
+# --- CLOUDINARY & DB IMPORTS ---
+import cloudinary
+import cloudinary.uploader
+from sqlalchemy import create_engine, text
 
 from fastapi import FastAPI, UploadFile, File, Form, Request, HTTPException, Response, Cookie
 from fastapi.staticfiles import StaticFiles
@@ -12,10 +16,9 @@ from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
-# --- CONFIGURAÇÃO INICIAL (V-PWA) ---
-app = FastAPI(title="NEO Social Engine V6", version="14.0.0")
+# --- CONFIGURAÇÃO INICIAL (V-CLOUD) ---
+app = FastAPI(title="NEO Social Engine V-Cloud", version="15.0.0")
 
-# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -23,97 +26,106 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Pastas
-os.makedirs("uploads", exist_ok=True)
 os.makedirs("templates", exist_ok=True)
 os.makedirs("static", exist_ok=True)
+# Pasta uploads removida da lógica principal (agora é tudo nuvem)
 
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
-# --- DATABASE SETUP (SQLITE) ---
-DB_NAME = "neo.db"
+# --- DATABASE SETUP (POSTGRES OR SQLITE) ---
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+if DATABASE_URL:
+    # Fix para Render/Heroku que usam postgres:// antigo
+    if DATABASE_URL.startswith("postgres://"):
+        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+else:
+    # Fallback local
+    DATABASE_URL = "sqlite:///neo.db"
+
+# Cria engine do SQLAlchemy
+engine = create_engine(DATABASE_URL)
 
 def init_db():
-    conn = sqlite3.connect(DB_NAME)
-    c = conn.cursor()
-    
-    # Tabela de Usuários
-    c.execute('''CREATE TABLE IF NOT EXISTS users (
-                 username TEXT PRIMARY KEY,
-                 created_at TEXT,
-                 profile_pic TEXT
-                 )''')
+    with engine.connect() as conn:
+        # Tabela de Usuários
+        conn.execute(text('''CREATE TABLE IF NOT EXISTS users (
+                     username TEXT PRIMARY KEY,
+                     created_at TEXT,
+                     profile_pic TEXT
+                     )'''))
 
-    # Tabela de Vídeos
-    c.execute('''CREATE TABLE IF NOT EXISTS videos (
-                 id TEXT PRIMARY KEY,
-                 title TEXT,
-                 url TEXT,
-                 likes INTEGER DEFAULT 0,
-                 filter_type TEXT,
-                 author TEXT,
-                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                 FOREIGN KEY(author) REFERENCES users(username)
-                 )''')
+        # Tabela de Vídeos
+        conn.execute(text('''CREATE TABLE IF NOT EXISTS videos (
+                     id TEXT PRIMARY KEY,
+                     title TEXT,
+                     url TEXT,
+                     likes INTEGER DEFAULT 0,
+                     filter_type TEXT,
+                     author TEXT,
+                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                     FOREIGN KEY(author) REFERENCES users(username)
+                     )'''))
 
-    # Tabela de Likes
-    c.execute('''CREATE TABLE IF NOT EXISTS likes (
-                 user_id TEXT,
-                 video_id TEXT,
-                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                 PRIMARY KEY (user_id, video_id),
-                 FOREIGN KEY(user_id) REFERENCES users(username),
-                 FOREIGN KEY(video_id) REFERENCES videos(id)
-                 )''')
-                 
-    # Tabela de Comentários
-    c.execute('''CREATE TABLE IF NOT EXISTS comments (
-                 id TEXT PRIMARY KEY,
-                 user_id TEXT,
-                 video_id TEXT,
-                 text TEXT,
-                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                 FOREIGN KEY(user_id) REFERENCES users(username),
-                 FOREIGN KEY(video_id) REFERENCES videos(id)
-                 )''')
-                 
-    # Tabela de Follows (Quem segue quem)
-    c.execute('''CREATE TABLE IF NOT EXISTS follows (
-                 follower_id TEXT,
-                 followed_id TEXT,
-                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                 PRIMARY KEY (follower_id, followed_id),
-                 FOREIGN KEY(follower_id) REFERENCES users(username),
-                 FOREIGN KEY(followed_id) REFERENCES users(username)
-                 )''')
-    
-    conn.commit()
-    conn.close()
+        # Tabela de Likes
+        conn.execute(text('''CREATE TABLE IF NOT EXISTS likes (
+                     user_id TEXT,
+                     video_id TEXT,
+                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                     PRIMARY KEY (user_id, video_id),
+                     FOREIGN KEY(user_id) REFERENCES users(username),
+                     FOREIGN KEY(video_id) REFERENCES videos(id)
+                     )'''))
+                     
+        # Tabela de Comentários
+        conn.execute(text('''CREATE TABLE IF NOT EXISTS comments (
+                     id TEXT PRIMARY KEY,
+                     user_id TEXT,
+                     video_id TEXT,
+                     text TEXT,
+                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                     FOREIGN KEY(user_id) REFERENCES users(username),
+                     FOREIGN KEY(video_id) REFERENCES videos(id)
+                     )'''))
+                     
+        # Tabela de Follows
+        conn.execute(text('''CREATE TABLE IF NOT EXISTS follows (
+                     follower_id TEXT,
+                     followed_id TEXT,
+                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                     PRIMARY KEY (follower_id, followed_id),
+                     FOREIGN KEY(follower_id) REFERENCES users(username),
+                     FOREIGN KEY(followed_id) REFERENCES users(username)
+                     )'''))
+        conn.commit()
 
-# Inicializa o banco ao rodar
 init_db()
+
+# --- CLOUDINARY SETUP ---
+cloudinary.config( 
+  cloud_name = os.getenv("CLOUD_NAME", ""), 
+  api_key = os.getenv("CLOUD_API_KEY", ""), 
+  api_secret = os.getenv("CLOUD_API_SECRET", ""),
+  secure = True
+)
 
 # --- SESSIONS ---
 active_sessions = {}
 
-# --- HELPER ---
 def get_user_from_session(token):
     return active_sessions.get(token)
 
-# --- ENDPOINTS DE AUTH ---
+# --- ENDPOINTS ---
 
 @app.post("/login")
 async def login(response: Response, username: str = Form(...)):
-    conn = sqlite3.connect(DB_NAME)
-    c = conn.cursor()
-    c.execute("SELECT * FROM users WHERE username=?", (username,))
-    if not c.fetchone():
-        c.execute("INSERT INTO users (username, created_at, profile_pic) VALUES (?, ?, ?)", 
-                  (username, str(datetime.now()), None))
-        conn.commit()
-    conn.close()
+    with engine.connect() as conn:
+        result = conn.execute(text("SELECT * FROM users WHERE username=:u"), {"u": username})
+        if not result.fetchone():
+            conn.execute(text("INSERT INTO users (username, created_at, profile_pic) VALUES (:u, :cat, :p)"), 
+                         {"u": username, "cat": str(datetime.now()), "p": None})
+            conn.commit()
 
     session_token = str(uuid.uuid4())
     active_sessions[session_token] = username
@@ -127,17 +139,12 @@ async def get_current_user(neo_session: Optional[str] = Cookie(None)):
     if not user:
         return JSONResponse(content={"user": None}, status_code=401)
         
-    conn = sqlite3.connect(DB_NAME)
-    conn.row_factory = sqlite3.Row
-    c = conn.cursor()
-    c.execute("SELECT profile_pic FROM users WHERE username=?", (user,))
-    row = c.fetchone()
-    conn.close()
+    with engine.connect() as conn:
+        result = conn.execute(text("SELECT profile_pic FROM users WHERE username=:u"), {"u": user})
+        row = result.fetchone()
     
-    profile_pic = row['profile_pic'] if row else None
+    profile_pic = row[0] if row else None 
     return {"user": user, "profile_pic": profile_pic}
-
-# --- ENDPOINTS GERAIS ---
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
@@ -147,45 +154,39 @@ async def read_root(request: Request):
 async def get_feed(type: str = "foryou", neo_session: Optional[str] = Cookie(None)):
     current_user = get_user_from_session(neo_session)
     
-    conn = sqlite3.connect(DB_NAME)
-    conn.row_factory = sqlite3.Row
-    c = conn.cursor()
-    
-    if type == "following" and current_user:
-        query = """
-            SELECT 
-                v.*,
-                u.profile_pic as author_pic,
-                (SELECT COUNT(*) FROM likes WHERE video_id = v.id) as total_likes,
-                (SELECT COUNT(*) FROM likes WHERE video_id = v.id AND user_id = ?) as user_liked,
-                (SELECT COUNT(*) FROM comments WHERE video_id = v.id) as total_comments,
-                (SELECT COUNT(*) FROM follows WHERE follower_id = ? AND followed_id = v.author) as is_following
-            FROM videos v
-            LEFT JOIN users u ON v.author = u.username
-            WHERE v.author IN (SELECT followed_id FROM follows WHERE follower_id = ?)
-            ORDER BY v.created_at DESC
-        """
-        c.execute(query, (current_user, current_user, current_user))
+    with engine.connect() as conn:
+        if type == "following" and current_user:
+            query = text("""
+                SELECT 
+                    v.id, v.title, v.url, v.likes, v.filter_type, v.author, v.created_at,
+                    u.profile_pic as author_pic,
+                    (SELECT COUNT(*) FROM likes WHERE video_id = v.id) as total_likes,
+                    (SELECT COUNT(*) FROM likes WHERE video_id = v.id AND user_id = :cu) as user_liked,
+                    (SELECT COUNT(*) FROM comments WHERE video_id = v.id) as total_comments,
+                    (SELECT COUNT(*) FROM follows WHERE follower_id = :cu AND followed_id = v.author) as is_following
+                FROM videos v
+                LEFT JOIN users u ON v.author = u.username
+                WHERE v.author IN (SELECT followed_id FROM follows WHERE follower_id = :cu)
+                ORDER BY v.created_at DESC
+            """)
+            result = conn.execute(query, {"cu": current_user})
+        else:
+            query = text("""
+                SELECT 
+                    v.id, v.title, v.url, v.likes, v.filter_type, v.author, v.created_at,
+                    u.profile_pic as author_pic,
+                    (SELECT COUNT(*) FROM likes WHERE video_id = v.id) as total_likes,
+                    (SELECT COUNT(*) FROM likes WHERE video_id = v.id AND user_id = :cu) as user_liked,
+                    (SELECT COUNT(*) FROM comments WHERE video_id = v.id) as total_comments,
+                    (SELECT COUNT(*) FROM follows WHERE follower_id = :cu AND followed_id = v.author) as is_following
+                FROM videos v
+                LEFT JOIN users u ON v.author = u.username
+                ORDER BY v.created_at DESC
+            """)
+            result = conn.execute(query, {"cu": current_user})
         
-    else:
-        # Default 'foryou'
-        query = """
-            SELECT 
-                v.*,
-                u.profile_pic as author_pic,
-                (SELECT COUNT(*) FROM likes WHERE video_id = v.id) as total_likes,
-                (SELECT COUNT(*) FROM likes WHERE video_id = v.id AND user_id = ?) as user_liked,
-                (SELECT COUNT(*) FROM comments WHERE video_id = v.id) as total_comments,
-                (SELECT COUNT(*) FROM follows WHERE follower_id = ? AND followed_id = v.author) as is_following
-            FROM videos v
-            LEFT JOIN users u ON v.author = u.username
-            ORDER BY v.created_at DESC
-        """
-        c.execute(query, (current_user, current_user))
-    
-    rows = c.fetchall()
-    conn.close()
-    
+        rows = result.mappings().all()
+
     videos = []
     is_admin = (current_user == "@admin")
     for row in rows:
@@ -195,11 +196,11 @@ async def get_feed(type: str = "foryou", neo_session: Optional[str] = Cookie(Non
             "url": row["url"],
             "likes": row["total_likes"],
             "comments": row["total_comments"],
-            "user_has_liked": row["user_liked"] > 0,
+            "user_has_liked": row["user_liked"] > 0 if row["user_liked"] else False, # handle none
             "filter_type": row["filter_type"],
             "author": row["author"],
             "author_pic": row["author_pic"],
-            "is_following": row["is_following"] > 0,
+            "is_following": row["is_following"] > 0 if row["is_following"] else False,
             "is_own_video": (row["author"] == current_user) if current_user else False,
             "can_delete": (row["author"] == current_user) or is_admin if current_user else False
         })
@@ -210,65 +211,58 @@ async def get_feed(type: str = "foryou", neo_session: Optional[str] = Cookie(Non
 async def get_profile(username: str, neo_session: Optional[str] = Cookie(None)):
     current_user = get_user_from_session(neo_session)
     
-    conn = sqlite3.connect(DB_NAME)
-    conn.row_factory = sqlite3.Row
-    c = conn.cursor()
-    
-    # Busca User Info
-    c.execute("SELECT * FROM users WHERE username=?", (username,))
-    user_data = c.fetchone()
-    if not user_data:
-        conn.close()
-        raise HTTPException(status_code=404, detail="User not found")
+    with engine.connect() as conn:
+        # Check user
+        user_res = conn.execute(text("SELECT * FROM users WHERE username=:u"), {"u": username}).mappings().fetchone()
+        if not user_res:
+             raise HTTPException(status_code=404, detail="User not found")
+        
+        # Follower counts
+        f1 = conn.execute(text("SELECT COUNT(*) FROM follows WHERE followed_id=:u"), {"u": username}).scalar()
+        f2 = conn.execute(text("SELECT COUNT(*) FROM follows WHERE follower_id=:u"), {"u": username}).scalar()
+        
+        # Total Likes
+        query_likes = text("""
+            SELECT COUNT(*) 
+            FROM likes l
+            JOIN videos v ON l.video_id = v.id
+            WHERE v.author = :u
+        """)
+        total_likes = conn.execute(query_likes, {"u": username}).scalar()
+        
+        # Is Following
+        is_following = False
+        if current_user:
+            check = conn.execute(text("SELECT * FROM follows WHERE follower_id=:cu AND followed_id=:u"), 
+                                 {"cu": current_user, "u": username}).fetchone()
+            if check:
+                is_following = True
 
-    # Estatísticas
-    c.execute("SELECT COUNT(*) FROM follows WHERE followed_id=?", (username,))
-    followers_count = c.fetchone()[0]
+        # Videos
+        v_query = text("""
+            SELECT 
+                v.id, v.title, v.url, v.likes, v.filter_type, v.author, v.created_at,
+                u.profile_pic as author_pic,
+                (SELECT COUNT(*) FROM likes WHERE video_id = v.id) as total_likes,
+                (SELECT COUNT(*) FROM likes WHERE video_id = v.id AND user_id = :cu) as user_liked,
+                (SELECT COUNT(*) FROM comments WHERE video_id = v.id) as total_comments
+            FROM videos v
+            LEFT JOIN users u ON v.author = u.username
+            WHERE v.author = :u
+            ORDER BY v.created_at DESC
+        """)
+        v_rows = conn.execute(v_query, {"cu": current_user, "u": username}).mappings().all()
 
-    c.execute("SELECT COUNT(*) FROM follows WHERE follower_id=?", (username,))
-    following_count = c.fetchone()[0]
-
-    c.execute("""
-        SELECT COUNT(*) 
-        FROM likes l
-        JOIN videos v ON l.video_id = v.id
-        WHERE v.author = ?
-    """, (username,))
-    total_likes_count = c.fetchone()[0]
-
-    is_following = False
-    if current_user:
-        c.execute("SELECT * FROM follows WHERE follower_id=? AND followed_id=?", (current_user, username))
-        if c.fetchone():
-            is_following = True
-
-    # Busca vídeos
-    c.execute("""
-        SELECT 
-            v.*,
-            u.profile_pic as author_pic,
-            (SELECT COUNT(*) FROM likes WHERE video_id = v.id) as total_likes,
-            (SELECT COUNT(*) FROM likes WHERE video_id = v.id AND user_id = ?) as user_liked,
-            (SELECT COUNT(*) FROM comments WHERE video_id = v.id) as total_comments
-        FROM videos v
-        LEFT JOIN users u ON v.author = u.username
-        WHERE v.author = ?
-        ORDER BY v.created_at DESC
-    """, (current_user, username))
-    
-    rows = c.fetchall()
-    conn.close()
-    
     videos = []
     is_admin = (current_user == "@admin")
-    for row in rows:
+    for row in v_rows:
         videos.append({
             "id": row["id"],
             "title": row["title"],
             "url": row["url"],
             "likes": row["total_likes"],
             "comments": row["total_comments"],
-            "user_has_liked": row["user_liked"] > 0,
+            "user_has_liked": row["user_liked"] > 0 if row["user_liked"] else False,
             "filter_type": row["filter_type"],
             "author": row["author"],
             "author_pic": row["author_pic"],
@@ -277,10 +271,10 @@ async def get_profile(username: str, neo_session: Optional[str] = Cookie(None)):
         
     return JSONResponse(content={
         "username": username, 
-        "profile_pic": user_data['profile_pic'],
-        "followers_count": followers_count,
-        "following_count": following_count,
-        "total_likes": total_likes_count,
+        "profile_pic": user_res['profile_pic'],
+        "followers_count": f1,
+        "following_count": f2,
+        "total_likes": total_likes,
         "is_following": is_following,
         "videos": videos
     })
@@ -290,94 +284,86 @@ async def toggle_follow(target_username: str, neo_session: Optional[str] = Cooki
     follower = get_user_from_session(neo_session)
     if not follower:
         raise HTTPException(status_code=401, detail="Login required")
-    
     if follower == target_username:
          return {"following": False, "message": "Cannot follow self"}
 
-    conn = sqlite3.connect(DB_NAME)
-    c = conn.cursor()
-    c.execute("SELECT * FROM follows WHERE follower_id=? AND followed_id=?", (follower, target_username))
-    existing = c.fetchone()
-    
-    is_following = False
-    if existing:
-        c.execute("DELETE FROM follows WHERE follower_id=? AND followed_id=?", (follower, target_username))
-        is_following = False
-    else:
-        c.execute("INSERT INTO follows (follower_id, followed_id) VALUES (?, ?)", (follower, target_username))
-        is_following = True
+    with engine.connect() as conn:
+        check = conn.execute(text("SELECT * FROM follows WHERE follower_id=:f AND followed_id=:t"), 
+                             {"f": follower, "t": target_username}).fetchone()
         
-    c.execute("SELECT COUNT(*) FROM follows WHERE followed_id=?", (target_username,))
-    count = c.fetchone()[0]
-    conn.commit()
-    conn.close()
+        is_following = False
+        if check:
+            conn.execute(text("DELETE FROM follows WHERE follower_id=:f AND followed_id=:t"), 
+                         {"f": follower, "t": target_username})
+            is_following = False
+        else:
+            conn.execute(text("INSERT INTO follows (follower_id, followed_id) VALUES (:f, :t)"), 
+                         {"f": follower, "t": target_username})
+            is_following = True
+        
+        conn.commit()
+        count = conn.execute(text("SELECT COUNT(*) FROM follows WHERE followed_id=:t"), 
+                             {"t": target_username}).scalar()
+
     return {"following": is_following, "followers_count": count}
-
-
-# --- SOCIAL ACTIONS ---
 
 @app.post("/upload_avatar")
 async def upload_avatar(file: UploadFile = File(...), neo_session: Optional[str] = Cookie(None)):
     user = get_user_from_session(neo_session)
     if not user:
         raise HTTPException(status_code=401, detail="Login required")
-        
-    file_ext = file.filename.split(".")[-1]
-    filename = f"avatar_{user}_{uuid.uuid4()}.{file_ext}"
-    file_path = f"uploads/{filename}"
     
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-        
-    conn = sqlite3.connect(DB_NAME)
-    c = conn.cursor()
-    c.execute("UPDATE users SET profile_pic = ? WHERE username = ?", (f"/uploads/{filename}", user))
-    conn.commit()
-    conn.close()
+    # Cloudinary Upload (Avatar = Image)
+    try:
+        upload_result = cloudinary.uploader.upload(file.file, resource_type="image", folder="neo_avatars")
+        secure_url = upload_result["secure_url"]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Cloudinary error: {str(e)}")
+
+    with engine.connect() as conn:
+        conn.execute(text("UPDATE users SET profile_pic = :url WHERE username = :u"), 
+                     {"url": secure_url, "u": user})
+        conn.commit()
     
-    return {"message": "Avatar updated", "url": f"/uploads/{filename}"}
+    return {"message": "Avatar updated", "url": secure_url}
 
 @app.post("/toggle_like/{video_id}")
 async def toggle_like(video_id: str, neo_session: Optional[str] = Cookie(None)):
     user = get_user_from_session(neo_session)
     if not user:
         raise HTTPException(status_code=401, detail="Login required")
-        
-    conn = sqlite3.connect(DB_NAME)
-    c = conn.cursor()
-    c.execute("SELECT * FROM likes WHERE user_id=? AND video_id=?", (user, video_id))
-    existing_like = c.fetchone()
-    
-    liked = False
-    if existing_like:
-        c.execute("DELETE FROM likes WHERE user_id=? AND video_id=?", (user, video_id))
-        liked = False
-    else:
-        c.execute("INSERT INTO likes (user_id, video_id) VALUES (?, ?)", (user, video_id))
-        liked = True
-    conn.commit()
-    c.execute("SELECT COUNT(*) FROM likes WHERE video_id=?", (video_id,))
-    count = c.fetchone()[0]
-    conn.close()
-    return {"liked": liked, "count": count}
 
-# --- COMMENTS ---
+    with engine.connect() as conn:
+        check = conn.execute(text("SELECT * FROM likes WHERE user_id=:u AND video_id=:v"), 
+                             {"u": user, "v": video_id}).fetchone()
+        liked = False
+        if check:
+            conn.execute(text("DELETE FROM likes WHERE user_id=:u AND video_id=:v"), 
+                         {"u": user, "v": video_id})
+            liked = False
+        else:
+            conn.execute(text("INSERT INTO likes (user_id, video_id) VALUES (:u, :v)"), 
+                         {"u": user, "v": video_id})
+            liked = True
+        conn.commit()
+        
+        count = conn.execute(text("SELECT COUNT(*) FROM likes WHERE video_id=:v"), 
+                             {"v": video_id}).scalar()
+
+    return {"liked": liked, "count": count}
 
 @app.get("/comments/{video_id}")
 async def get_comments(video_id: str):
-    conn = sqlite3.connect(DB_NAME)
-    conn.row_factory = sqlite3.Row
-    c = conn.cursor()
-    c.execute("""
-        SELECT c.*, u.profile_pic 
-        FROM comments c
-        LEFT JOIN users u ON c.user_id = u.username
-        WHERE c.video_id = ?
-        ORDER BY c.created_at ASC
-    """, (video_id,))
-    rows = c.fetchall()
-    conn.close()
-    
+    with engine.connect() as conn:
+        query = text("""
+            SELECT c.id, c.user_id, c.text, u.profile_pic 
+            FROM comments c
+            LEFT JOIN users u ON c.user_id = u.username
+            WHERE c.video_id = :v
+            ORDER BY c.created_at ASC
+        """)
+        rows = conn.execute(query, {"v": video_id}).mappings().all()
+
     comments = []
     for row in rows:
         comments.append({
@@ -395,29 +381,21 @@ async def post_comment(video_id: str = Form(...), text: str = Form(...), neo_ses
         raise HTTPException(status_code=401, detail="Login required")
         
     comment_id = str(uuid.uuid4())
-    conn = sqlite3.connect(DB_NAME)
-    c = conn.cursor()
-    c.execute("INSERT INTO comments (id, user_id, video_id, text) VALUES (?, ?, ?, ?)", 
-              (comment_id, user, video_id, text))
-    conn.commit()
-    conn.close()
     
-    conn = sqlite3.connect(DB_NAME)
-    conn.row_factory = sqlite3.Row
-    c = conn.cursor()
-    c.execute("SELECT profile_pic FROM users WHERE username=?", (user,))
-    u_row = c.fetchone()
-    conn.close()
-    
+    with engine.connect() as conn:
+        conn.execute(text("INSERT INTO comments (id, user_id, video_id, text) VALUES (:id, :u, :v, :t)"), 
+                     {"id": comment_id, "u": user, "v": video_id, "t": text})
+        conn.commit()
+        
+        # Get author pic
+        pic = conn.execute(text("SELECT profile_pic FROM users WHERE username=:u"), {"u": user}).scalar()
+
     return {
         "id": comment_id,
         "user_id": user,
         "text": text,
-        "profile_pic": u_row['profile_pic'] if u_row else None
+        "profile_pic": pic
     }
-
-
-# --- UPLOAD & REMIX ---
 
 @app.post("/upload")
 async def upload_video(
@@ -426,32 +404,32 @@ async def upload_video(
     neo_session: Optional[str] = Cookie(None)
 ):
     author = get_user_from_session(neo_session) or "Anonymous"
+    
     try:
-        file_ext = file.filename.split(".")[-1]
+        # Upload direto para Cloudinary (Video)
+        upload_result = cloudinary.uploader.upload(file.file, resource_type="video", folder="neo_videos")
+        secure_url = upload_result["secure_url"]
+        
         video_id = str(uuid.uuid4())
-        filename = f"{video_id}.{file_ext}"
-        file_path = f"uploads/{filename}"
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-        conn = sqlite3.connect(DB_NAME)
-        c = conn.cursor()
-        c.execute("INSERT INTO videos (id, title, url, likes, filter_type, author) VALUES (?, ?, ?, ?, ?, ?)", 
-                  (video_id, title, f"/uploads/{filename}", 0, None, author))
-        conn.commit()
-        conn.close()
+        
+        with engine.connect() as conn:
+            conn.execute(text("INSERT INTO videos (id, title, url, likes, filter_type, author) VALUES (:id, :t, :url, 0, NULL, :author)"), 
+                         {"id": video_id, "t": title, "url": secure_url, "author": author})
+            conn.commit()
+
         new_video = {
             "id": video_id,
             "title": title,
-            "url": f"/uploads/{filename}",
+            "url": secure_url,
             "likes": 0,
             "comments": 0,
             "user_has_liked": False,
             "filter_type": None,
             "author": author,
             "author_pic": None,
-            # Defaults for upload response
             "is_following": False,
-            "is_own_video": True
+            "is_own_video": True,
+            "can_delete": True
         }
         return JSONResponse(content={"message": "Upload success", "video": new_video}, status_code=200)
     except Exception as e:
@@ -460,26 +438,21 @@ async def upload_video(
 @app.post("/remix/{video_id}")
 async def remix_video(video_id: str, style: str = "cyberpunk", neo_session: Optional[str] = Cookie(None)):
     author = get_user_from_session(neo_session) or "VisualEngine"
-    conn = sqlite3.connect(DB_NAME)
-    conn.row_factory = sqlite3.Row
-    c = conn.cursor()
-    c.execute("SELECT * FROM videos WHERE id=?", (video_id,))
-    original = c.fetchone()
-    if not original:
-        conn.close()
-        raise HTTPException(status_code=404, detail="Video not found")
-    new_id = str(uuid.uuid4())
-    new_title = f"[{style.upper()}] {original['title']}"
-    c.execute("INSERT INTO videos (id, title, url, likes, filter_type, author) VALUES (?, ?, ?, ?, ?, ?)", 
-              (new_id, new_title, original['url'], 0, style, str(author)))
-    conn.commit()
-    conn.close()
     
-    conn = sqlite3.connect(DB_NAME)
-    c = conn.cursor()
-    c.execute("SELECT profile_pic FROM users WHERE username=?", (author,))
-    pic = c.fetchone()
-    conn.close()
+    with engine.connect() as conn:
+        original = conn.execute(text("SELECT * FROM videos WHERE id=:v"), {"v": video_id}).mappings().fetchone()
+        if not original:
+             raise HTTPException(status_code=404, detail="Video not found")
+        
+        new_id = str(uuid.uuid4())
+        new_title = f"[{style.upper()}] {original['title']}"
+        
+        # O Remix cria um novo registro apontando para a MESMA url (economiza storage)
+        conn.execute(text("INSERT INTO videos (id, title, url, likes, filter_type, author) VALUES (:id, :t, :url, 0, :s, :a)"), 
+                     {"id": new_id, "t": new_title, "url": original['url'], "s": style, "a": str(author)})
+        conn.commit()
+        
+        pic = conn.execute(text("SELECT profile_pic FROM users WHERE username=:u"), {"u": author}).scalar()
 
     new_video = {
         "id": new_id,
@@ -490,7 +463,7 @@ async def remix_video(video_id: str, style: str = "cyberpunk", neo_session: Opti
         "user_has_liked": False,
         "filter_type": style,
         "author": str(author),
-        "author_pic": pic[0] if pic else None,
+        "author_pic": pic,
         "is_following": False,
         "is_own_video": True,
         "can_delete": True
@@ -503,60 +476,31 @@ async def delete_video(video_id: str, neo_session: Optional[str] = Cookie(None))
     if not user:
         raise HTTPException(status_code=401, detail="Login required")
         
-    conn = sqlite3.connect(DB_NAME)
-    conn.row_factory = sqlite3.Row
-    c = conn.cursor()
-    c.execute("SELECT author, url FROM videos WHERE id=?", (video_id,))
-    video = c.fetchone()
-    
-    if not video:
-        conn.close()
-        raise HTTPException(status_code=404, detail="Video not found")
+    with engine.connect() as conn:
+        video = conn.execute(text("SELECT author FROM videos WHERE id=:v"), {"v": video_id}).mappings().fetchone()
         
-    if video['author'] != user and user != "@admin":
-        conn.close()
-        raise HTTPException(status_code=403, detail="Not authorized")
+        if not video:
+             raise HTTPException(status_code=404, detail="Video not found")
         
-    # Deletar do banco
-    c.execute("DELETE FROM likes WHERE video_id=?", (video_id,))
-    c.execute("DELETE FROM comments WHERE video_id=?", (video_id,))
-    c.execute("DELETE FROM videos WHERE id=?", (video_id,))
-    conn.commit()
-    conn.close()
+        if video['author'] != user and user != "@admin":
+             raise HTTPException(status_code=403, detail="Not authorized")
+             
+        # Cascading deletes
+        conn.execute(text("DELETE FROM likes WHERE video_id=:v"), {"v": video_id})
+        conn.execute(text("DELETE FROM comments WHERE video_id=:v"), {"v": video_id})
+        conn.execute(text("DELETE FROM videos WHERE id=:v"), {"v": video_id})
+        conn.commit()
     
-    # Deletar arquivo (opcional, cuidado se for remix que compartilha arquivo)
-    # Na implementação atual, remixes copiam a URL, mas não duplicam o arquivo físico.
-    # Então deletar o arquivo físico pode quebrar outros remixes se eles apontarem pro mesmo arquivo.
-    # Vamos manter simples: Deletamos o registro. Se quiser deletar arquivo, teria que checar uso.
-    # Pra esse MVP, deletar o registro é suficiente pra sumir do app.
-    
-    return {"message": "Video deleted"}
+    return {"message": "Video deleted from DB"}
 
+# --- NGROK / STARTUP ---
 from pyngrok import ngrok
-import uvicorn
 
 @app.on_event("startup")
 async def startup_event():
-    # Encerra túneis anteriores para evitar conflitos
-    ngrok.kill()
-    
-    # FORÇA a autenticação com o token fornecido
-    # (Isso resolve problemas de PATH ou config file não encontrado)
-    ngrok.set_auth_token("37JzD4nOOK0mtW7NS8eb5DDLjhE_4sCu3RoUSVLB5Z9CpnCa4")
-    
-    try:
-        # Abre um túnel HTTP na porta 8000
-        public_url = ngrok.connect(8000).public_url
-        print("\n\n" + "⭐"*30)
-        print(f"🚀 LINK PÚBLICO GERADO: {public_url}")
-        print("📲 Abra este link no seu celular para instalar o PWA!")
-        print("⭐"*30 + "\n\n")
-    except Exception as e:
-        print("\n\n" + "!"*60)
-        print(f"⚠️ NGROK FALHOU: {e}")
-        print("O servidor continuará rodando localmente.")
-        print("🚀 ACESSO LOCAL: http://10.0.0.189:8000")
-        print("!"*60 + "\n\n")
+    # Only use ngrok if NOT in cloud env (checked by presence of DATABASE_URL)
+    # This prevents Render from trying to use ngrok which might fail due to no token in env or simple redundancy
+    pass
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))

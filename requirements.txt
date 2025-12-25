@@ -3,3 +3,6 @@ uvicorn
 jinja2
 python-multipart
 pyngrok
+psycopg2-binary
+cloudinary
+sqlalchemy
