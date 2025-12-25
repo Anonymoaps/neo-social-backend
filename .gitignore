@@ -1,0 +1,8 @@
+venv/
+__pycache__/
+*.pyc
+neo.db
+.env
+uploads/
+.DS_Store
+.vscode/

@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Super App - Test Center</title>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #0d0d0d; color: white; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        h1, h2 { color: #E94359; }
+        
+        /* Upload Section */
+        .upload-box { border: 2px dashed #333; padding: 20px; border-radius: 10px; margin-bottom: 40px; text-align: center; }
+        input[type="text"], input[type="file"] { padding: 10px; margin: 10px; border-radius: 5px; border: none; }
+        button { background: linear-gradient(45deg, #A020F0, #E94359); color: white; border: none; padding: 10px 20px; border-radius: 20px; cursor: pointer; font-weight: bold; }
+        button:hover { opacity: 0.9; }
+
+        /* Feed Section */
+        .feed { display: flex; flex-direction: column; gap: 20px; }
+        .video-card { background: #1a1a1a; padding: 15px; border-radius: 15px; }
+        .video-player { width: 100%; border-radius: 10px; background: black; max-height: 500px; }
+        .meta { margin-top: 10px; display: flex; justify-content: space-between; align-items: center; }
+        .stats { color: #888; font-size: 0.9em; }
+        
+        .remix-btn { background: #A020F0; font-size: 0.8em; margin-left: 10px; }
+        
+        /* Modal */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); justify-content: center; align-items: center; }
+        .modal-content { background: #222; padding: 30px; border-radius: 15px; width: 300px; text-align: center; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🚀 Super App Alpha</h1>
+    
+    <!-- Upload Section -->
+    <div class="upload-box">
+        <h2>Upload Video</h2>
+        <input type="text" id="username" placeholder="Username (ex: user1)" value="dev_user">
+        <input type="text" id="videoTitle" placeholder="Video Title">
+        <input type="file" id="videoFile" accept="video/mp4,video/quicktime">
+        <button onclick="uploadVideo()">Upload Power</button>
+    </div>
+
+    <!-- Feed Section -->
+    <h2>🔥 For You Feed</h2>
+    <div id="feed" class="feed">
+        <!-- Videos will appear here -->
+        <p>Loading feed...</p>
+    </div>
+</div>
+
+<!-- Remix Modal -->
+<div id="remixModal" class="modal">
+    <div class="modal-content">
+        <h3>✨ AI Remix</h3>
+        <p>Describe how to transform this video:</p>
+        <input type="text" id="remixPrompt" placeholder="ex: Anime style, Cyberpunk..." style="width: 80%;">
+        <br><br>
+        <button onclick="submitRemix()">Generate Remix</button>
+        <button onclick="closeModal()" style="background: #333; margin-top: 10px;">Cancel</button>
+    </div>
+</div>
+
+<script>
+    const API_URL = "http://localhost:8000";
+    let selectedVideoId = null;
+
+    async function loadFeed() {
+        try {
+            const res = await fetch(`${API_URL}/videos/feed`);
+            const videos = await res.json();
+            
+            const feedDiv = document.getElementById('feed');
+            feedDiv.innerHTML = '';
+            
+            if (videos.length === 0) {
+                feedDiv.innerHTML = '<p>No videos yet. Upload one!</p>';
+                return;
+            }
+
+            videos.forEach(video => {
+                const card = document.createElement('div');
+                card.className = 'video-card';
+                card.innerHTML = `
+                    <div style="text-align:center; background:black; border-radius:10px;">
+                        <video class="video-player" controls src="${API_URL}${video.video_url}"></video>
+                    </div>
+                    <div class="meta">
+                        <div>
+                            <strong>${video.title}</strong><br>
+                            <span style="color:#aaa; font-size:0.8em;">${video.description || ''}</span>
+                            ${video.is_ai_generated ? '<span style="background:#333; padding:2px 5px; border-radius:4px; font-size:0.7em; margin-left:5px;">🤖 AI Remix</span>' : ''}
+                        </div>
+                        <button class="remix-btn" onclick="openRemix('${video.id}')">✨ Remix</button>
+                    </div>
+                    <div class="stats">
+                        0 likes • 0 comments
+                    </div>
+                `;
+                feedDiv.appendChild(card);
+            });
+        } catch (err) {
+            console.error(err);
+            document.getElementById('feed').innerHTML = '<p style="color:red">Error connecting to server. Is backend running?</p>';
+        }
+    }
+
+    async function uploadVideo() {
+        const fileInput = document.getElementById('videoFile');
+        const titleInput = document.getElementById('videoTitle');
+        const usernameInput = document.getElementById('username');
+        
+        if (!fileInput.files[0]) return alert("Select a file!");
+
+        const formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+        formData.append('title', titleInput.value || "Untitled");
+        formData.append('user_id', usernameInput.value); // Mocking user_id as string for now
+        
+        try {
+            const res = await fetch(`${API_URL}/videos/upload`, {
+                method: 'POST',
+                body: formData
+            });
+            if (res.ok) {
+                alert("Upload Successful!");
+                loadFeed();
+            } else {
+                alert("Upload failed.");
+            }
+        } catch (err) {
+            alert("Error uploading.");
+        }
+    }
+
+    // Remix Logic
+    function openRemix(videoId) {
+        selectedVideoId = videoId;
+        document.getElementById('remixModal').style.display = 'flex';
+    }
+
+    function closeModal() {
+        document.getElementById('remixModal').style.display = 'none';
+        selectedVideoId = null;
+    }
+
+    async function submitRemix() {
+        const prompt = document.getElementById('remixPrompt').value;
+        if (!prompt) return alert("Enter a prompt!");
+        
+        try {
+            const res = await fetch(`${API_URL}/remix/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    original_video_id: selectedVideoId,
+                    prompt: prompt,
+                    user_id: "user_remixer" // Mock ID
+                })
+            });
+            
+            if (res.ok) {
+                alert("Remix Generated! (Check the feed)");
+                closeModal();
+                loadFeed();
+            } else {
+                alert("Remix failed.");
+            }
+        } catch (err) {
+            alert("Error remixing.");
+        }
+    }
+
+    // Load feed on start
+    loadFeed();
+</script>
+
+</body>
+</html>

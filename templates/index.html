@@ -1,0 +1,1000 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>NEO NETWORK</title>
+
+    <!-- PWA -->
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#000000">
+
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --neon-cyan: #00f3ff;
+            --neon-purple: #bc13fe;
+            --facebook-blue: #1877F2;
+            --google-red: #DB4437;
+        }
+
+        body {
+            background-color: #050505;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: 'Segoe UI', sans-serif;
+            overflow: hidden;
+            color: white;
+            overscroll-behavior: none;
+            /* PWA Feel */
+        }
+
+        /* --- UI COMPONENTS --- */
+
+        .mobile-frame {
+            width: 400px;
+            height: 850px;
+            max-height: 100vh;
+            width: 100vw;
+            /* Fullscreen logic for PWA mostly */
+            background: #000;
+            /* border-radius: 25px; Removed for PWA feel on mobile, useful on desktop dev though */
+            /* box-shadow: 0 0 50px rgba(0, 243, 255, 0.15); */
+            /* border: 4px solid #222; */
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        @media (min-width: 500px) {
+            .mobile-frame {
+                width: 400px;
+                height: 850px;
+                max-height: 95vh;
+                border-radius: 25px;
+                box-shadow: 0 0 50px rgba(0, 243, 255, 0.15);
+                border: 4px solid #222;
+            }
+        }
+
+        .screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: black;
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.4s ease-in-out, opacity 0.4s;
+            z-index: 10;
+        }
+
+        .screen-center {
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .hidden {
+            transform: translateY(-100%);
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        /* SOCIAL & ONBOARDING */
+        .logo-big {
+            font-size: 5rem;
+            font-weight: 900;
+            letter-spacing: 5px;
+            text-shadow: 0 0 20px var(--neon-purple);
+            margin-bottom: 10px;
+            animation: float 3s infinite ease-in-out;
+        }
+
+        @keyframes float {
+            0% {
+                transform: translateY(0)
+            }
+
+            50% {
+                transform: translateY(-10px)
+            }
+
+            100% {
+                transform: translateY(0)
+            }
+        }
+
+        .social-btn {
+            width: 100%;
+            max-width: 280px;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 50px;
+            border: none;
+            font-weight: bold;
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            cursor: pointer;
+            color: white;
+        }
+
+        .btn-fb {
+            background: var(--facebook-blue);
+        }
+
+        .btn-google {
+            background: var(--google-red);
+        }
+
+        .input-dark {
+            background: transparent;
+            border: none;
+            border-bottom: 2px solid #333;
+            color: white;
+            font-size: 1.5rem;
+            text-align: center;
+            padding: 10px;
+            width: 80%;
+            outline: none;
+            margin-bottom: 30px;
+        }
+
+        .btn-next {
+            background: white;
+            color: black;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 30px;
+            font-weight: bold;
+            font-size: 1.2rem;
+            cursor: pointer;
+        }
+
+        /* FEED & TABS */
+        .feed-header {
+            position: absolute;
+            top: 20px;
+            width: 100%;
+            text-align: center;
+            z-index: 30;
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            font-size: 1rem;
+        }
+
+        .feed-tab {
+            color: rgba(255, 255, 255, 0.5);
+            cursor: pointer;
+            font-weight: bold;
+            transition: color 0.2s;
+        }
+
+        .feed-tab.active {
+            color: white;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+            border-bottom: 2px solid white;
+            padding-bottom: 3px;
+        }
+
+        .feed-container {
+            flex: 1;
+            width: 100%;
+            height: 100%;
+            overflow-y: scroll;
+            scroll-snap-type: y mandatory;
+            scrollbar-width: none;
+        }
+
+        .feed-container::-webkit-scrollbar {
+            display: none;
+        }
+
+        .video-card {
+            width: 100%;
+            height: 100vh;
+            scroll-snap-align: start;
+            position: relative;
+            background: #000;
+            overflow: hidden;
+        }
+
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: filter 0.5s ease;
+        }
+
+        /* FILTERS */
+        .filter-cyberpunk {
+            filter: contrast(120%) saturate(200%) hue-rotate(190deg);
+            border: 2px solid #00f3ff;
+            box-sizing: border-box;
+        }
+
+        .filter-matrix {
+            filter: contrast(150%) brightness(110%) sepia(100%) hue-rotate(50deg) saturate(300%);
+            border: 2px solid #00ff00;
+            box-sizing: border-box;
+        }
+
+        .filter-vhs {
+            filter: contrast(150%) saturate(0%) sepia(30%) blur(1px);
+        }
+
+        .filter-glitch {
+            filter: invert(10%) contrast(140%) brightness(120%);
+        }
+
+        /* PROFILE SCREEN */
+        .profile-header {
+            padding: 30px 20px;
+            background: linear-gradient(0deg, transparent, rgba(188, 19, 254, 0.2));
+            text-align: center;
+            border-bottom: 1px solid #333;
+        }
+
+        .profile-pic {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: #333;
+            margin: 0 auto 10px;
+            border: 2px solid var(--neon-cyan);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 2rem;
+            background-size: cover;
+            background-position: center;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .profile-pic:hover:after {
+            content: '\f030';
+            font-family: 'Font Awesome 6 Free';
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .profile-stats-container {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 15px;
+        }
+
+        .stat-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .stat-num {
+            font-weight: 900;
+            font-size: 1.1rem;
+            color: white;
+        }
+
+        .stat-label {
+            font-size: 0.7rem;
+            color: #aaa;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .btn-follow {
+            background: white;
+            color: black;
+            border: none;
+            padding: 8px 30px;
+            border-radius: 20px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 15px;
+        }
+
+        .btn-follow.following {
+            background: transparent;
+            border: 1px solid white;
+            color: white;
+        }
+
+        .btn-back {
+            background: transparent;
+            border: none;
+            color: #aaa;
+            padding: 5px;
+            cursor: pointer;
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-size: 1.5rem;
+        }
+
+        .btn-install {
+            display: none;
+            background: #222;
+            color: #00f3ff;
+            border: 1px solid #00f3ff;
+            padding: 5px 15px;
+            border-radius: 15px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            margin: 10px auto 0 auto;
+        }
+
+        /* OVERLAYS & ACTIONS */
+        .info-overlay {
+            position: absolute;
+            bottom: 80px;
+            left: 15px;
+            width: 70%;
+            z-index: 20;
+            text-shadow: 0 2px 4px black;
+            pointer-events: none;
+        }
+
+        .username-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            pointer-events: auto;
+        }
+
+        .user-avatar-small {
+            width: 35px;
+            height: 35px;
+            border-radius: 50%;
+            background: #333;
+            background-size: cover;
+            border: 1px solid white;
+        }
+
+        .username-link {
+            font-weight: bold;
+            cursor: pointer;
+            text-decoration: none;
+        }
+
+        .quick-follow-btn {
+            margin-left: 8px;
+            font-weight: bold;
+            color: var(--neon-purple);
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: opacity 0.5s;
+        }
+
+        .actions-sidebar {
+            position: absolute;
+            bottom: 80px;
+            right: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            align-items: center;
+            z-index: 20;
+        }
+
+        .action-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(5px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+            cursor: pointer;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: 0.2s;
+        }
+
+        .action-icon:active {
+            transform: scale(0.9);
+        }
+
+        .like-active {
+            color: #ff0055 !important;
+            border-color: #ff0055 !important;
+            text-shadow: 0 0 10px #ff0055;
+            animation: pop 0.3s forwards;
+        }
+
+        @keyframes pop {
+            50% {
+                transform: scale(1.3);
+            }
+        }
+
+        /* DOUBLE TAP HEART */
+        .big-heart {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            font-size: 100px;
+            color: rgba(255, 0, 85, 0.9);
+            pointer-events: none;
+            z-index: 40;
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .big-heart.animate {
+            transform: translate(-50%, -50%) scale(1.5);
+            opacity: 0;
+            transition: transform 0.5s, opacity 0.5s;
+        }
+
+        /* TRASH ICON */
+        .btn-trash {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 1.2rem;
+            cursor: pointer;
+            z-index: 30;
+        }
+
+        .btn-trash:hover {
+            color: red;
+        }
+
+        /* MODALS */
+        .bottom-modal {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 60%;
+            background: #111;
+            border-top: 2px solid var(--neon-purple);
+            border-radius: 20px 20px 0 0;
+            z-index: 50;
+            display: flex;
+            flex-direction: column;
+            transform: translateY(100%);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .bottom-modal.open {
+            transform: translateY(0);
+        }
+
+        .comments-header {
+            padding: 15px;
+            text-align: center;
+            border-bottom: 1px solid #333;
+            font-weight: bold;
+            letter-spacing: 1px;
+        }
+
+        .comments-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .comment-item {
+            display: flex;
+            gap: 10px;
+            font-size: 0.9rem;
+        }
+
+        .comment-avatar {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: #444;
+            background-size: cover;
+            flex-shrink: 0;
+        }
+
+        .comment-content b {
+            color: var(--neon-cyan);
+            margin-right: 5px;
+        }
+
+        .comment-input-area {
+            padding: 10px;
+            border-top: 1px solid #333;
+            display: flex;
+            gap: 10px;
+        }
+
+        .c-input {
+            flex: 1;
+            background: #222;
+            border: none;
+            padding: 10px;
+            border-radius: 20px;
+            color: white;
+            outline: none;
+        }
+
+        .c-send {
+            background: var(--neon-purple);
+            border: none;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            color: white;
+            cursor: pointer;
+        }
+
+        .effect-btn {
+            width: 80%;
+            padding: 15px;
+            border: 1px solid #444;
+            background: rgba(255, 255, 255, 0.05);
+            color: white;
+            font-size: 1.2em;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 10px;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+            align-self: center;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="mobile-frame">
+
+        <!-- LOGIN FLOW -->
+        <div id="screen-social" class="screen screen-center">
+            <div class="logo-big">NEO</div>
+            <p style="opacity:0.6; margin-bottom:40px;">THE FUTURE SOCIAL NETWORK</p>
+            <button class="social-btn btn-fb" onclick="fakeSocialLogin()"><i class="fab fa-facebook-f"></i> Continuar
+                com Facebook</button>
+            <button class="social-btn btn-google" onclick="fakeSocialLogin()"><i class="fab fa-google"></i> Continuar
+                com Google</button>
+        </div>
+
+        <div id="screen-onboarding" class="screen screen-center hidden">
+            <h2 style="margin-bottom:10px;">Identidade</h2>
+            <p style="opacity:0.6; margin-bottom:40px;">Como devemos te chamar?</p>
+            <input type="text" id="usernameInput" class="input-dark" placeholder="@seu_nome" autocomplete="off">
+            <button class="btn-next" onclick="finishOnboarding()">ENTRAR</button>
+        </div>
+
+        <!-- MAIN FEED -->
+        <div id="screen-feed" class="screen hidden" style="background:black">
+            <!-- Tabs Header -->
+            <div class="feed-header">
+                <div id="tab-following" class="feed-tab" onclick="switchFeed('following')">Following</div>
+                <div id="tab-foryou" class="feed-tab active" onclick="switchFeed('foryou')">For You</div>
+            </div>
+
+            <div id="feed" class="feed-container"></div>
+
+            <input type="file" id="vidUpload" accept="video/*" style="display:none" onchange="doUpload(this)">
+            <div style="position:absolute; bottom:20px; width:100%; text-align:center; z-index:30;">
+                <i class="fas fa-plus-circle"
+                    style="color:white; font-size:40px; cursor:pointer; text-shadow:0 0 10px black;"
+                    onclick="document.getElementById('vidUpload').click()"></i>
+            </div>
+        </div>
+
+        <!-- PROFILE SCREEN -->
+        <div id="screen-profile" class="screen hidden" style="background:black; z-index:40;">
+            <div class="profile-header">
+                <button class="btn-back" onclick="closeProfile()"><i class="fas fa-arrow-left"></i></button>
+                <div class="profile-pic" onclick="document.getElementById('avatarUpload').click()"><i
+                        class="fas fa-user-circle"></i></div>
+                <input type="file" id="avatarUpload" accept="image/*" style="display:none"
+                    onchange="uploadAvatar(this)">
+                <h2 id="profile-name" style="margin:5px 0 0 0;">@username</h2>
+                <div class="profile-stats-container">
+                    <div class="stat-box"><span id="p-followers" class="stat-num">0</span><span
+                            class="stat-label">Seguidores</span></div>
+                    <div class="stat-box"><span id="p-following" class="stat-num">0</span><span
+                            class="stat-label">Seguindo</span></div>
+                    <div class="stat-box"><span id="p-likes" class="stat-num">0</span><span
+                            class="stat-label">Likes</span></div>
+                </div>
+                <button id="btn-follow-action" class="btn-follow" style="display:none;"
+                    onclick="toggleFollow()">SEGUIR</button>
+
+                <button id="btn-install" class="btn-install" onclick="installPWA()">📲 Instalar App</button>
+            </div>
+            <div id="profile-feed" class="feed-container"></div>
+        </div>
+
+        <!-- MODALS -->
+        <div id="comments-modal" class="bottom-modal">
+            <div class="comments-header">
+                Comentários
+                <i class="fas fa-times" style="float:right; cursor:pointer;" onclick="closeComments()"></i>
+            </div>
+            <div id="comments-list" class="comments-list"></div>
+            <div class="comment-input-area">
+                <input type="text" id="c-text" class="c-input" placeholder="Escreva algo...">
+                <button class="c-send" onclick="postComment()"><i class="fas fa-paper-plane"></i></button>
+            </div>
+        </div>
+
+        <div id="effects-modal" class="bottom-modal" style="justify-content:center; gap:10px;">
+            <h3 style="color:white; margin:0; text-align:center;">SELECT FILTER</h3>
+            <button class="effect-btn" style="border-color:#00f3ff; color:#00f3ff;"
+                onclick="applyFilter('cyberpunk')">🟣 CYBERPUNK</button>
+            <button class="effect-btn" style="border-color:#00ff00; color:#00ff00;" onclick="applyFilter('matrix')">🟢
+                MATRIX</button>
+            <button class="effect-btn" style="border-color:#aaa; color:#aaa;" onclick="applyFilter('vhs')">📺
+                VHS</button>
+            <button class="effect-btn" style="border-color:#ffeb3b; color:#ffeb3b;" onclick="applyFilter('glitch')">⚡
+                GLITCH</button>
+        </div>
+
+    </div>
+
+    <script>
+        // --- PWA INSTALL LOGIC ---
+        let deferredPrompt;
+        const installBtn = document.getElementById('btn-install');
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            installBtn.style.display = 'block';
+        });
+
+        async function installPWA() {
+            if (!deferredPrompt) return;
+            deferredPrompt.prompt();
+            const { outcome } = await deferredPrompt.userChoice;
+            deferredPrompt = null;
+            if (outcome === 'accepted') {
+                installBtn.style.display = 'none';
+            }
+        }
+
+        // --- FEED TABS LOGIC ---
+        let currentFeedType = 'foryou';
+
+        async function switchFeed(type) {
+            if (currentFeedType === type) return;
+            currentFeedType = type;
+
+            // Visual Update
+            document.querySelectorAll('.feed-tab').forEach(el => el.classList.remove('active'));
+            document.getElementById(`tab-${type}`).classList.add('active');
+
+            // Load Content
+            await loadFeed();
+        }
+
+        async function loadFeed() {
+            const feedContainer = document.getElementById('feed');
+            feedContainer.innerHTML = '';
+
+            const res = await fetch(`/feed?type=${currentFeedType}`);
+            const videos = await res.json();
+
+            if (videos.length === 0) {
+                if (currentFeedType === 'following') {
+                    feedContainer.innerHTML = '<div style="height:100%; display:flex; flex-direction:column; justify-content:center; align-items:center; color:#555; text-align:center;"><h3>Seu Feed está vazio</h3><p>Siga pessoas para ver vídeos aqui.</p></div>';
+                } else {
+                    feedContainer.innerHTML = '<div style="height:100%; display:flex; justify-content:center; align-items:center; color:#555;">Nenhum vídeo ainda.</div>';
+                }
+                return;
+            }
+            renderList(videos, 'feed');
+        }
+
+        // --- AUTH ---
+        function fakeSocialLogin() {
+            event.currentTarget.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Conectando...';
+            setTimeout(() => {
+                document.getElementById('screen-social').classList.add('hidden');
+                document.getElementById('screen-onboarding').classList.remove('hidden');
+            }, 1000);
+        }
+        async function finishOnboarding() {
+            const username = document.getElementById('usernameInput').value.trim();
+            if (!username) return alert("Digite um nome.");
+            const fd = new FormData(); fd.append('username', username);
+            const res = await fetch('/login', { method: 'POST', body: fd });
+            if (res.ok) {
+                document.getElementById('screen-onboarding').classList.add('hidden');
+                document.getElementById('screen-feed').classList.remove('hidden');
+                loadFeed();
+            }
+        }
+
+        // --- RENDER ---
+        function renderList(videos, containerId) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = '';
+            videos.forEach(v => {
+                const filterClass = v.filter_type ? `filter-${v.filter_type}` : '';
+                const filterLabel = v.filter_type ? `<span style="background:white; color:black; padding:2px 6px; font-weight:bold; font-size:0.7em; margin-right:5px; border-radius:4px;">${v.filter_type}</span>` : '';
+                const likeClass = v.user_has_liked ? 'like-active' : '';
+                const avatarStyle = v.author_pic ? `background-image:url('${v.author_pic}');` : '';
+
+                // Quick Follow Logic
+                let followBtnHTML = '';
+                if (!v.is_own_video && !v.is_following) {
+                    followBtnHTML = `<span class="quick-follow-btn" onclick="quickFollow('${v.author}', this)"> • Seguir</span>`;
+                }
+
+                // Delete Button Logic
+                let deleteHTML = '';
+                if (v.can_delete) {
+                    deleteHTML = `<i class="fas fa-trash btn-trash" onclick="deleteVideo('${v.id}')"></i>`;
+                }
+
+                const div = document.createElement('div');
+                div.className = 'video-card';
+                div.innerHTML = `
+                    <video src="${v.url}" class="${filterClass}" loop muted playsinline 
+                        onclick="togglePlay(this)" 
+                        ondblclick="doubleTapLike('${v.id}', this)"></video>
+                    
+                    <i class="fas fa-heart big-heart"></i>
+                    ${deleteHTML}
+
+                    <div class="info-overlay">
+                        <div class="username-row" onclick="openProfile('${v.author}')">
+                            <div class="user-avatar-small" style="${avatarStyle}"></div>
+                            <div class="username-link">@${v.author}</div>
+                            ${followBtnHTML}
+                        </div>
+                        <div style="margin-top:5px;">${filterLabel} ${v.title}</div>
+                    </div>
+                    <div class="actions-sidebar">
+                        <div class="action-btn" onclick="toggleLike('${v.id}', this)" style="text-align:center;">
+                            <div class="action-icon ${likeClass}"><i class="fas fa-heart"></i></div>
+                            <span style="font-size:0.8em; margin-top:5px; display:block;">${v.likes}</span>
+                        </div>
+                        <div class="action-btn" onclick="openComments('${v.id}')" style="text-align:center;">
+                            <div class="action-icon"><i class="fas fa-comment-dots"></i></div>
+                            <span style="font-size:0.8em; margin-top:5px; display:block;">${v.comments}</span>
+                        </div>
+                        <div class="action-icon btn-magic" onclick="openEffects('${v.id}')"><i class="fas fa-magic"></i></div>
+                        <div class="action-icon"><i class="fas fa-share"></i></div>
+                    </div>
+                `;
+                container.appendChild(div);
+                div.querySelector('video').play().catch(() => { });
+            });
+        }
+
+        // --- UX ACTIONS ---
+        function togglePlay(vid) {
+            if (vid.paused) vid.play();
+            else vid.pause();
+        }
+
+        async function doubleTapLike(id, vidElement) {
+            // Find the heart icon and big heart
+            const card = vidElement.parentNode;
+            const bigHeart = card.querySelector('.big-heart');
+            const likeBtn = card.querySelector('.action-btn'); // Assuming first action btn is like
+
+            // Animate Big Heart
+            bigHeart.classList.remove('animate');
+            void bigHeart.offsetWidth; // Force reflow
+            bigHeart.classList.add('animate');
+
+            // Trigger Like Logic
+            // Check if already liked check is complex here directly, so we just toggle optimistic
+            // Ideally we check state, but for "double tap to like" usually it means "MAKE IT LIKED".
+            // If already liked, usually it does nothing or pulsing animation.
+            // For simplicity in MVP: We treat it as a toggle or enforcement of Like.
+            // Let's reuse toggleLike but force add if possible or just toggle.
+            // A simple implementation: Just call toggleLike.
+
+            toggleLike(id, likeBtn);
+        }
+
+        async function deleteVideo(id) {
+            if (!confirm("Tem certeza que quer apagar esse vídeo?")) return;
+            try {
+                const res = await fetch(`/delete_video/${id}`, { method: 'DELETE' });
+                if (res.ok) {
+                    alert("Vídeo apagado.");
+                    // Remove visualmente
+                    loadFeed(); // Reload feed is safer
+                } else {
+                    alert("Erro ao apagar.");
+                }
+            } catch (e) { console.error(e); }
+        }
+
+        // --- ACTIONS ---
+        async function toggleLike(id, btn) {
+            const icon = btn.querySelector('.action-icon');
+            const span = btn.querySelector('span');
+            const isLiked = icon.classList.contains('like-active');
+            let count = parseInt(span.innerText);
+            if (isLiked) { icon.classList.remove('like-active'); count--; }
+            else { icon.classList.add('like-active'); count++; }
+            span.innerText = count;
+            try {
+                const res = await fetch(`/toggle_like/${id}`, { method: 'POST' });
+                const data = await res.json();
+                span.innerText = data.count;
+                if (data.liked) icon.classList.add('like-active');
+                else icon.classList.remove('like-active');
+            } catch (e) { }
+        }
+
+        async function quickFollow(username, btn) {
+            event.stopPropagation(); // Stop opening profile
+            btn.innerText = ' • Seguindo...';
+
+            try {
+                const res = await fetch(`/toggle_follow/${username}`, { method: 'POST' });
+                const data = await res.json();
+
+                if (data.following) {
+                    btn.innerText = '';
+                    btn.style.opacity = '0';
+                    setTimeout(() => btn.remove(), 500); // Remove element after fade
+                } else {
+                    btn.innerText = ' • Seguir'; // Rollback if unfollowed (unlikely in this context but handling it)
+                }
+            } catch (e) {
+                btn.innerText = ' • Erro';
+            }
+        }
+
+        let currentRemixId = null;
+        let currentVideoCommentsId = null;
+        let currentProfileUsername = null;
+
+        async function openProfile(username) {
+            currentProfileUsername = username;
+            document.getElementById('profile-name').innerText = '@' + username;
+            const picDiv = document.querySelector('.profile-pic');
+            picDiv.innerHTML = `<i class="fas fa-user-circle"></i>`;
+            picDiv.style.backgroundImage = 'none';
+
+            const pScreen = document.getElementById('screen-profile');
+            pScreen.classList.remove('hidden');
+
+            try {
+                const res = await fetch(`/profile/${username}`);
+                const data = await res.json();
+
+                document.getElementById('p-followers').innerText = data.followers_count;
+                document.getElementById('p-following').innerText = data.following_count;
+                document.getElementById('p-likes').innerText = data.total_likes;
+
+                if (data.profile_pic) {
+                    picDiv.style.backgroundImage = `url('${data.profile_pic}')`;
+                    picDiv.innerHTML = '';
+                }
+
+                const btnFollow = document.getElementById('btn-follow-action');
+                const btnInstall = document.getElementById('btn-install');
+                const meRes = await fetch('/me');
+                const meData = await meRes.json();
+
+                // Show install button ONLY if it's My Profile AND prompt was captured
+                if (meData.user === username && deferredPrompt) {
+                    btnInstall.style.display = 'block';
+                } else {
+                    btnInstall.style.display = 'none';
+                }
+
+                if (meData.user === username) {
+                    btnFollow.style.display = 'none';
+                } else {
+                    btnFollow.style.display = 'block';
+                    updateFollowButton(data.is_following);
+                }
+
+                renderList(data.videos, 'profile-feed');
+            } catch (e) { alert("Erro ao carregar perfil"); console.error(e); }
+        }
+
+        function updateFollowButton(isFollowing) {
+            const btn = document.getElementById('btn-follow-action');
+            if (isFollowing) {
+                btn.innerText = 'SEGUINDO';
+                btn.classList.add('following');
+            } else {
+                btn.innerText = 'SEGUIR';
+                btn.classList.remove('following');
+            }
+        }
+
+        async function toggleFollow() {
+            if (!currentProfileUsername) return;
+            const res = await fetch(`/toggle_follow/${currentProfileUsername}`, { method: 'POST' });
+            const data = await res.json();
+            if (data.message === "Cannot follow self") return;
+            updateFollowButton(data.following);
+            document.getElementById('p-followers').innerText = data.followers_count;
+
+            // Reload Following Feed if needed
+            if (currentFeedType === 'following') loadFeed();
+        }
+
+        function closeProfile() { document.getElementById('screen-profile').classList.add('hidden'); }
+        async function uploadAvatar(input) {
+            if (!input.files[0]) return;
+            const fd = new FormData(); fd.append('file', input.files[0]);
+            const res = await fetch('/upload_avatar', { method: 'POST', body: fd });
+            const data = await res.json();
+            document.querySelector('.profile-pic').style.backgroundImage = `url('${data.url}')`;
+            document.querySelector('.profile-pic').innerHTML = '';
+            alert("Foto atualizada!");
+        }
+
+        // --- COMMENTS ---
+        async function openComments(vidId) {
+            currentVideoCommentsId = vidId;
+            document.getElementById('comments-modal').classList.add('open');
+            document.getElementById('comments-list').innerHTML = 'Loading...';
+            const res = await fetch(`/comments/${vidId}`);
+            const data = await res.json();
+            const list = document.getElementById('comments-list');
+            list.innerHTML = '';
+            data.forEach(c => {
+                const bg = c.profile_pic ? `background-image:url('${c.profile_pic}')` : '';
+                const item = document.createElement('div');
+                item.className = 'comment-item';
+                item.innerHTML = `<div class="comment-avatar" style="${bg}"></div><div class="comment-content"><b>@${c.user_id}</b> ${c.text}</div>`;
+                list.appendChild(item);
+            });
+        }
+        function closeComments() { document.getElementById('comments-modal').classList.remove('open'); currentVideoCommentsId = null; }
+        async function postComment() {
+            const txt = document.getElementById('c-text').value;
+            if (!txt || !currentVideoCommentsId) return;
+            const fd = new FormData(); fd.append('video_id', currentVideoCommentsId); fd.append('text', txt);
+            const res = await fetch('/comment', { method: 'POST', body: fd });
+            const c = await res.json();
+            const list = document.getElementById('comments-list');
+            const bg = c.profile_pic ? `background-image:url('${c.profile_pic}')` : '';
+            const item = document.createElement('div');
+            item.className = 'comment-item';
+            item.innerHTML = `<div class="comment-avatar" style="${bg}"></div><div class="comment-content"><b>@${c.user_id}</b> ${c.text}</div>`;
+            list.appendChild(item);
+            document.getElementById('c-text').value = '';
+        }
+        async function doUpload(input) {
+            if (!input.files[0]) return;
+            const title = prompt("Legenda:");
+            if (!title) return;
+            const fd = new FormData(); fd.append('file', input.files[0]); fd.append('title', title);
+            await fetch('/upload', { method: 'POST', body: fd });
+            loadFeed();
+        }
+        function openEffects(id) { currentRemixId = id; document.getElementById('effects-modal').classList.add('open'); }
+        async function applyFilter(s) { if (!currentRemixId) return; await fetch(`/remix/${currentRemixId}?style=${s}`, { method: 'POST' }); document.getElementById('effects-modal').classList.remove('open'); loadFeed(); }
+    </script>
+</body>
+
+</html>
