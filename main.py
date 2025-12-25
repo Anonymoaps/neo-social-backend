@@ -112,6 +112,7 @@ class Follow(Base):
 # fix_comments_table() # Removed
 Base.metadata.create_all(bind=engine)
 
+def update_db_schema():
     try:
         with engine.connect() as conn:
             # New Auth Columns
