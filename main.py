@@ -185,7 +185,8 @@ def get_user_from_session(request: Request):
 # --- ENDPOINTS ---
 
 # --- EMAIL HELPER ---
-def send_verification_email(to_email, code):
+# --- EMAIL HELPER ---
+def send_email(to_email, code):
     sender_email = os.getenv("EMAIL_SENDER")
     password = os.getenv("EMAIL_PASSWORD")
     
@@ -241,7 +242,7 @@ async def auth_register(email: str = Form(...), password: str = Form(...)):
         
         # Send Email (Async or Background task recommended in prod, keeping simple here)
         try:
-            send_verification_email(email, code)
+            send_email(email, code)
         except: pass 
 
         if existing:
@@ -610,7 +611,7 @@ async def comment_video(request: Request, comment: CommentModel):
     db.add(Comment(text=comment.text, username=user, video_id=comment.video_id))
     db.commit()
     db.close()
-    return {"status": "success", "message": "Comentário salvo"}
+    return JSONResponse(status_code=200, content={"status": "success", "message": "Comentário enviado", "user": user})
 
 @app.get("/comments/{video_id}")
 async def get_comments(video_id: str):
