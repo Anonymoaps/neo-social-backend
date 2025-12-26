@@ -4,6 +4,9 @@ import uuid
 import random
 from typing import Optional, List
 from datetime import datetime
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 # --- CLOUDINARY & DB IMPORTS ---
 import cloudinary
@@ -181,6 +184,46 @@ def get_user_from_session(request: Request):
 
 # --- ENDPOINTS ---
 
+# --- EMAIL HELPER ---
+def send_verification_email(to_email, code):
+    sender_email = os.getenv("EMAIL_SENDER")
+    password = os.getenv("EMAIL_PASSWORD")
+    
+    if not sender_email or not password:
+        print("⚠️  Email credentials not set. Skipping email send.")
+        return
+
+    message = MIMEMultipart("alternative")
+    message["Subject"] = "Seu Código de Verificação NEO"
+    message["From"] = sender_email
+    message["To"] = to_email
+
+    text = f"Seu código é: {code}"
+    html = f"""
+    <html>
+      <body>
+        <h2>Bem-vindo ao NEO! 🚀</h2>
+        <p>Seu código de verificação é:</p>
+        <h1 style="color: #6C63FF;">{code}</h1>
+        <p>Insira este código no aplicativo para validar sua conta.</p>
+      </body>
+    </html>
+    """
+
+    part1 = MIMEText(text, "plain")
+    part2 = MIMEText(html, "html")
+    message.attach(part1)
+    message.attach(part2)
+
+    try:
+        with smtplib.SMTP("smtp.gmail.com", 587) as server:
+            server.starttls()
+            server.login(sender_email, password)
+            server.sendmail(sender_email, to_email, message.as_string())
+        print(f"✅ Email enviado para {to_email}")
+    except Exception as e:
+        print(f"❌ Erro ao enviar email: {e}")
+
 # --- AUTH ROTAS PROFISSIONAIS (3 PASSOS) ---
 
 @app.post("/auth/register")
@@ -194,7 +237,12 @@ async def auth_register(email: str = Form(...), password: str = Form(...)):
         
         # Generator Code
         code = str(random.randint(100000, 999999))
-        print(f"🔒 CÓDIGO DE VERIFICAÇÃO PARA {email}: {code}") # SIMULATION SMTP
+        print(f"🔒 CÓDIGO DE VERIFICAÇÃO PARA {email}: {code}") # Console Backup
+        
+        # Send Email (Async or Background task recommended in prod, keeping simple here)
+        try:
+            send_verification_email(email, code)
+        except: pass 
 
         if existing:
             # Resend/Update code for unverified
@@ -427,8 +475,8 @@ async def get_public_profile_page(request: Request, username: str):
         # Get Target User
         target_user = db.query(User).filter(User.username == username).first()
         if not target_user: 
-            # 404 if user not found, NO REDIRECT
-            raise HTTPException(status_code=404, detail="User not found")
+            # Redirect to Home if user not found (Polite 404)
+            return RedirectResponse(url="/")
             
         # Get profile data (handles guest logic internally)
         data = get_profile_data(db, username, current_user_name)
@@ -559,8 +607,10 @@ async def comment_video(request: Request, comment: CommentModel):
     db.add(Comment(text=comment.text, username=user, video_id=comment.video_id))
     db.commit()
     db.close()
-    # FIX: Explicit JSONResponse to avoid redirect behavior
-    return JSONResponse(status_code=200, content={"status": "success", "message": "Comentário enviado"})
+    db.add(Comment(text=comment.text, username=user, video_id=comment.video_id))
+    db.commit()
+    db.close()
+    return {"status": "success", "message": "Comentário salvo"}
 
 @app.get("/comments/{video_id}")
 async def get_comments(video_id: str):
