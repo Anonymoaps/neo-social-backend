@@ -50,7 +50,7 @@
         <div class="comments-list" id="commentsList"></div>
         <div class="input-bar">
             <input type="text" id="commentInput" placeholder="Add comment...">
-            <button class="primary-btn" id="btnPostComment" style="width:auto; padding:0 20px;"
+            <button type="button" class="primary-btn" id="btnPostComment" style="width:auto; padding:0 20px;"
                 onclick="postComment(event)">Send</button>
         </div>
     </div>
@@ -434,16 +434,18 @@
         }
         function closeComments() { document.getElementById('commentsDrawer').classList.remove('open'); }
         async function postComment(e) {
-            e.preventDefault(); // CRÍTICO: Impede refresh
+            // "Nuclear Fix": Prevent default just in case, though type="button" helps
+            if (e) e.preventDefault();
 
-            const btn = e.target; // Captura o botão
+            const btn = document.getElementById('btnPostComment'); // Force ID selection for safety
             if (!currentUser) { document.getElementById('loginModal').style.display = 'flex'; return; }
             const txt = document.getElementById('commentInput').value;
             if (!txt) return;
 
-            btn.disabled = true; // Bloqueia múltiplos cliques
+            // UI Lockdown
+            btn.disabled = true;
             const originalText = btn.innerText;
-            btn.innerText = "...";
+            btn.innerText = "Enviando...";
 
             try {
                 const res = await fetch('/comment', {
@@ -455,17 +457,18 @@
                 if (res.ok) {
                     const data = await res.json();
                     if (data.status === "success") {
-                        window.location.reload();
+                        window.location.reload(); // Success!
                     } else {
-                        alert("Erro: " + data.message);
+                        alert("Erro: " + (data.message || "Falha desconhecida"));
+                        throw new Error(data.message);
                     }
                 } else {
-                    alert("Erro ao enviar comentário");
+                    alert("Erro ao enviar comentário (Server Error)");
+                    throw new Error("Server Error");
                 }
             } catch (err) {
                 console.error(err);
-                alert("Erro de conexão");
-            } finally {
+                // Re-enable only on error
                 btn.disabled = false;
                 btn.innerText = originalText;
             }
