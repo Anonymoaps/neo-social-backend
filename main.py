@@ -611,7 +611,7 @@ async def comment_video(request: Request, comment: CommentModel):
     db.add(Comment(text=comment.text, username=user, video_id=comment.video_id))
     db.commit()
     db.close()
-    return JSONResponse(status_code=200, content={"status": "success", "message": "Comentário enviado", "user": user})
+    return JSONResponse(status_code=200, content={"status": "success", "message": "Comentário salvo"})
 
 @app.get("/comments/{video_id}")
 async def get_comments(video_id: str):

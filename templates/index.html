@@ -50,7 +50,8 @@
         <div class="comments-list" id="commentsList"></div>
         <div class="input-bar">
             <input type="text" id="commentInput" placeholder="Add comment...">
-            <button class="primary-btn" style="width:auto; padding:0 20px;" onclick="postComment(event)">Send</button>
+            <button class="primary-btn" id="btnPostComment" style="width:auto; padding:0 20px;"
+                onclick="postComment(event)">Send</button>
         </div>
     </div>
 
@@ -433,10 +434,16 @@
         }
         function closeComments() { document.getElementById('commentsDrawer').classList.remove('open'); }
         async function postComment(e) {
-            e.preventDefault(); // OBRIGATÓRIO: Impede refresh
+            e.preventDefault(); // CRÍTICO: Impede refresh
+
+            const btn = e.target; // Captura o botão
             if (!currentUser) { document.getElementById('loginModal').style.display = 'flex'; return; }
             const txt = document.getElementById('commentInput').value;
             if (!txt) return;
+
+            btn.disabled = true; // Bloqueia múltiplos cliques
+            const originalText = btn.innerText;
+            btn.innerText = "...";
 
             try {
                 const res = await fetch('/comment', {
@@ -449,6 +456,8 @@
                     const data = await res.json();
                     if (data.status === "success") {
                         window.location.reload();
+                    } else {
+                        alert("Erro: " + data.message);
                     }
                 } else {
                     alert("Erro ao enviar comentário");
@@ -456,6 +465,9 @@
             } catch (err) {
                 console.error(err);
                 alert("Erro de conexão");
+            } finally {
+                btn.disabled = false;
+                btn.innerText = originalText;
             }
         }
 
